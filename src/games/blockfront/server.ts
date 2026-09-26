@@ -805,6 +805,8 @@ export default defineServer(shared, {
     match.map = mapById(plan.map) ?? MAPS[0];
     hotspots.splice(0, hotspots.length, ...match.map.hotspots);
     game.world.spawn = match.map.home;
+    // Each map its own time of day (the maps share one world).
+    game.env.time = match.map.time;
     conquest.begin(match.map.posts, match.mode.tickets);
     // Without posts to fight over, their markers go.
     for (const p of match.map.posts) game.hud.marker(`post_${p.id}`, null);
