@@ -28,8 +28,9 @@
  *   `gripL` are empty nodes at the centre of each fist's hold, identity rotation.
  * - Look (../voxel.mjs): clean voxels, flat colours with soft occlusion in the concave corners, the
  *   faces of a colour in a plane merged where nothing shades them; a metallic-roughness atlas
- *   (armour and helmets glossy) and an emissive one (`glow`: lenses' glints, Darth Voxel's chest
- *   box, the Emperor's eyes). One mesh, one material: one draw call a figure.
+ *   (armour and helmets glossy) and an emissive one, in colour (`glow`: Darth Voxel's chest box,
+ *   the Emperor's eyes, the heavy trooper's power cells; their tiles kept apart, see `atlasOf`).
+ *   One mesh, one material: one draw call a figure.
  * - Vertices: KHR_mesh_quantization (positions as voxel coordinates in bytes, the voxel size in the
  *   inverse bind matrices; normals as bytes), through EXT_meshopt_compression.
  * - Budgets (checked): <= 25000 triangles and <= 300 KB per file.
@@ -381,8 +382,9 @@ function face(hv, o = {}) {
 }
 
 /**
- * Hair: a shell a voxel over the skull where the style says: `short` (sides and back, a fringe),
- * `swept` (Luke Skyblocker's: fuller, a side parting, over the ears), `receding` (thin on top).
+ * Hair: a shell a voxel over the skull where the style says: `cropped` (the back and sides, for
+ * under a cap), `short` (and the top, a fringe), `swept` (Luke Skyblocker's: fuller, a side
+ * parting, over the ears), `receding` (thin on top).
  */
 function hair(hv, style) {
   const set = (i, j, k, c = 'hair') => hv.set('head', i, j, k, c);
@@ -584,9 +586,10 @@ function beanie(hv) {
 }
 
 /**
- * A hood, up: a shell round the skull (open in front, framing the face from the chin to the brow),
- * reaching out past the face (`deep`: how far), peaked at the crown, its back falling to the
- * shoulders. `colour`: a name, or (i, j, k) => name.
+ * A hood, up: a rounded cowl round the skull (open in front, framing the face from the chin to the
+ * brow), reaching out past the face (`deep`: how far), a soft point at the back of the crown
+ * (`peak`), its back falling behind the neck, narrowing, to the shoulders. `colour`: a name, or
+ * (i, j, k) => name.
  */
 function hood(hv, colour, { deep = 1, thick = 1.6, peak = 1, open = 5.6 } = {}) {
   const f = typeof colour === 'function' ? colour : () => colour;
@@ -600,8 +603,11 @@ function hood(hv, colour, { deep = 1, thick = 1.6, peak = 1, open = 5.6 } = {}) 
         // The outer shape: the skull grown by `thick`, stretched forward by `deep`, a peak on top
         // toward the back, the back falling to the neck.
         const g = thick;
-        const inOuter = inRound(p, [-6 - g, -1, -6 - g - 0.6], [6 + g, 12 + g + peak * (z < 0 ? 0.6 : 0), 5 + deep], [2.8, 3.4, 2.8]) || (y < 4 && y > -4 && z < -1 && inRound(p, [-6 - g, -4, -6 - g - 1], [6 + g, 6, 1], [2.4, 0, 2.6]));
-        if (!inOuter) continue;
+        const cowl = inRound(p, [-6 - g, -1, -6 - g - 0.4], [6 + g, 12 + g, 5 + deep], [3.8, 4.4, 3.6]);
+        const point = peak > 0 && inEllipsoid(p, [0, 11.4 + g, -3.2], [3.2, 1.2 + peak, 3.4]);
+        const w = 5.4 + g - Math.max(0, 2 - y) * 0.35;
+        const fall = y < 6 && inRound(p, [-w, -3.5, -6.6 - g], [w, 7, -1.5], [2.6, 1.6, 2.2]);
+        if (!cowl && !point && !fall) continue;
         // The opening: the face and a margin round it, from the chin to the brow.
         if (z > -1 && Math.abs(x) < open && y > -0.5 && y < 9.6 - Math.max(0, Math.abs(x) - 3.5) * 0.6) continue;
         // Under the chin, open (the neck).
@@ -717,12 +723,14 @@ function sash(vox, s, colour, { from = 1, w = 1.4 } = {}) {
 }
 
 /**
- * A skirt of cloth from the waist down to `bottom` (a row), flaring out `flare` voxels by the
- * bottom (`colour` a name or (i, j, k) => name): above `Y.split` on the hips, below it on each
- * side's thigh. `open` leaves a gap in front `open` voxels either side of the middle; `back` only
- * behind and at the sides (a coat's tails).
+ * A skirt of cloth from `top` (a row; the belly's bottom by default) down to `bottom`, `w0` and
+ * `d0` out from the middle at the top (half its width and depth), flaring out `flare` voxels to
+ * the sides and `zFlare` front and back by the bottom (`colour` a name or (i, j, k) => name). Each
+ * row goes on the part it hangs from: the chest, the belly, the hips, and below `Y.split` each
+ * side's thigh. Below the pelvis it's a shell two voxels thick round the legs. `open` leaves a
+ * gap in front that many voxels either side of the middle, `gap(t)` more toward the bottom.
  */
-function skirt(vox, s, colour, { top = null, bottom, flare = 2, zFlare = null, open = 0, gap = null, w0 = null, d0 = 4.2, shift = 0 } = {}) {
+function skirt(vox, s, colour, { top = null, bottom, flare = 2, zFlare = null, open = 0, gap = null, w0 = null, d0 = 4.2 } = {}) {
   const { b, Y } = s;
   const f = typeof colour === 'function' ? colour : () => colour;
   const y0 = top ?? Y.spine;
@@ -732,9 +740,8 @@ function skirt(vox, s, colour, { top = null, bottom, flare = 2, zFlare = null, o
       for (let k = -16; k < 16; k++) {
         const t = (y0 - j) / (y0 - bottom);
         const hw = (w0 ?? b.hip + 0.6) + t * flare, hd = d0 + t * (zFlare ?? flare * 0.9);
-        const x = C(i), z = C(k) - shift * t;
+        const x = C(i), z = C(k);
         if (Math.abs(x) > hw || Math.abs(z) > hd) continue;
-        // Hollow: a shell two voxels thick (the legs inside it).
         if (Math.abs(x) < hw - 2 && Math.abs(z) < hd - 2 && j < Y.pelvis) continue;
         if (open && z > 0 && Math.abs(x) < open + (gap ? gap(t) : 0)) continue;
         const c = f(i, j, k);
@@ -760,13 +767,14 @@ const camo = (colours, salt = 1) => (i, j, k) => {
  * black at the neck, waist, elbows and knees. A holster on the right thigh.
  */
 function trooperArmour(vox, s, { heavy = false } = {}) {
+  // (`heavy`: plates over the knees too.)
   const { b, Y } = s;
   const L = limbs(b);
   const A = 'armour';
   vox.recolour('neck', () => 'suit');
   // Chest and back plate, the shoulders over; a black ring round the neck.
   coat(vox, 'chest', A, (p) => p[1] > Y.chest + 1.5 && !(Math.abs(p[0]) < 3.6 && p[2] > -4.5 && p[2] < 2.5 && p[1] > Y.chestTop - 0.5));
-  // The chest plate's lower edge: a dark seam, and two small control boxes on its right.
+  // A row of little control keys on the chest plate's right.
   for (let i = -6; i < -2; i++) vox.set('chest', i, Y.chest + 5, F + 2, i % 2 ? 'armourShade' : 'trim');
   // Abdomen plate in front, kidney plate behind.
   coat(vox, 'spine', A, (p) => p[2] > 2 + b.belly && p[1] > Y.spine + 0.5 && p[1] < Y.chest + 0.5);
@@ -798,11 +806,7 @@ function trooperArmour(vox, s, { heavy = false } = {}) {
   block(vox, 'upperLegR', [-L.lx1 - 2, Y.pelvis, -1], [-L.lx1 - 1, Y.pelvis + 1, 0], 'grille');
 }
 
-function impTrooper(vox, s) {
-  trooperArmour(vox, s);
-}
-
-/** The heavy: the trooper's armour, thicker bells, grey shoulder pauldrons, a power pack on the back. */
+/** The heavy: the trooper's armour, knee plates, big grey pauldrons, a power pack on the back, grey shock bands. */
 function impHeavy(vox, s) {
   const { b, Y } = s;
   trooperArmour(vox, s, { heavy: true });
@@ -839,10 +843,9 @@ function impScout(vox, s) {
   block(vox, 'hips', [-1, Y.belt - 1, 5], [0, Y.belt, 5], A);
   for (const [, m] of SIDES) for (const x of [3, 5]) block(vox, 'hips', [m > 0 ? x - 1 : -x, Y.belt - 2, 4], [m > 0 ? x : -x + 1, Y.belt, 5], 'pouch');
   // Knee and shin guards, white in front and round the sides.
-  for (const [side, m] of SIDES) {
+  for (const [side] of SIDES) {
     coat(vox, `lowerLeg${side}`, A, (p) => p[2] > L.lz - 0.5 && p[1] > Y.ankle + 1.5 && p[1] < Y.knee + 1.5, { axes: 'xz' });
     coat(vox, `upperLeg${side}`, A, (p) => p[2] > L.lz1 - 0.5 && p[1] < Y.knee + 2.5, { axes: 'z' });
-    void m;
   }
   // The hold-out blaster in its holster on the right boot.
   block(vox, 'footR', [-L.lx1 - 2, 2, -2], [-L.lx1 - 2, Y.ankle + 2, 1], 'belt');
@@ -878,14 +881,13 @@ function rebelTrooper(vox, s) {
   block(vox, 'chest', [-4, Y.chest - 1, back - 3], [3, Y.chest + 5, back - 1], 'pack', 'packDark');
   block(vox, 'spine', [-4, Y.spine + 1, back - 3], [3, Y.chest - 2, back - 1], 'pack', 'packDark');
   for (let i = -5; i < 5; i++) for (const [j, k] of [[Y.chest + 6, back - 2], [Y.chest + 6, back - 3], [Y.chest + 7, back - 2]]) vox.set('chest', i, j, k, 'roll');
-  // Cuffs at the wrists; trousers bloused into the boots.
+  // Cuffs at the wrists.
   for (const [side] of SIDES) vox.recolour(`lowerArm${side}`, (i, j) => (j === Math.floor(Y.wrist) ? 'shirtShade' : undefined));
 }
 
 /** The rebel heavy: darker fatigues, sleeves rolled to the elbow, a bandolier, gloves, a heavy pack. */
 function rebelHeavy(vox, s) {
   const { b, Y } = s;
-  const L = limbs(b);
   // Rolled sleeves: bare forearms, a rolled cuff over the elbow.
   for (const [side, m] of SIDES) {
     vox.recolour(`lowerArm${side}`, () => 'skin');
@@ -901,7 +903,7 @@ function rebelHeavy(vox, s) {
     const k = frontOf(vox, part, x, y);
     if (k !== null) for (const dy of [0, 1]) vox.set(part, x, y + dy, k + 1, dy ? 'cellCap' : 'cell');
   }
-  // Belt, pouches round it; gloves; the pack.
+  // The belt, pouches on it; the pack.
   belt(vox, s, 'belt', { buckle: 'brass' });
   for (const [, m] of SIDES) {
     const [i0, i1] = X(m, 4, 6);
@@ -911,8 +913,7 @@ function rebelHeavy(vox, s) {
   block(vox, 'chest', [-6, Y.chest - 1, back - 5], [5, Y.chestTop - 1, back - 1], 'pack', 'packDark');
   block(vox, 'spine', [-5, Y.spine, back - 4], [4, Y.chest - 2, back - 1], 'pack', 'packDark');
   // A power cell across the top of the pack.
-  for (let i = -6; i < 6; i++) for (const [j, k] of [[Y.chestTop, back - 3], [Y.chestTop, back - 4], [Y.chestTop + 1, back - 3], [Y.chestTop + 1, back - 4]]) vox.set('chest', i, j, k, Math.abs(C(i)) > 5 ? 'grille' : 'cell');
-  void L;
+  for (let i = -6; i < 6; i++) for (const [j, k] of [[Y.chestTop, back - 3], [Y.chestTop, back - 4], [Y.chestTop + 1, back - 3], [Y.chestTop + 1, back - 4]]) vox.set('chest', i, j, k, Math.abs(C(i)) > 5 ? 'cellCap' : 'grille');
 }
 
 /** The scout: an Endor-camouflage poncho over the shoulders to the hips, dark trousers, a hood up. */
@@ -920,7 +921,7 @@ function rebelScout(vox, s) {
   const { b, Y } = s;
   const cam = camo(['camoA', 'camoB', 'camoC', 'camoD'], 3);
   // The poncho: over the chest and shoulders, hanging loose a voxel off the belly and the hips.
-  coat(vox, 'chest', cam, (p) => p[1] > Y.chest - 0.5, { times: 1 });
+  coat(vox, 'chest', cam, (p) => p[1] > Y.chest - 0.5);
   for (const [side, m] of SIDES) coat(vox, `upperArm${side}`, cam, (p) => p[1] > Y.shoulder - 3.5 && (m > 0 ? p[0] > b.sh - 0.5 : p[0] < -b.sh + 0.5));
   skirt(vox, s, cam, { top: Y.chest + 1, bottom: Y.pelvis - 2, flare: 1.5, w0: b.sh + 0.2, d0: 5.2, zFlare: 0.6 });
   // A strap across it from the right shoulder.
@@ -970,12 +971,11 @@ function ben(vox, s) {
   skirt(vox, s, 'tunic', { top: Y.belt - 1, bottom: Y.pelvis - 3, flare: 0.8, w0: b.hip + 0.3, d0: 4.3 });
   skirt(vox, s, (i, j, k) => ((i + 40) % 4 === 1 && k < -2 ? 'robeDark' : 'robe'), { top: Y.spine + 2, bottom: Y.knee - 2, flare: 2.2, zFlare: 1.4, open: 3, gap: (t) => t * 1.5 });
   // Sleeves: wide, belling out at the wrist.
-  for (const [side, m] of SIDES) {
+  for (const [side] of SIDES) {
     vox.recolour(`upperArm${side}`, () => 'robe');
     vox.recolour(`lowerArm${side}`, () => 'robe');
     coat(vox, `lowerArm${side}`, (i, j) => (j <= Math.floor(Y.wrist) + 1 ? 'robeDark' : 'robe'), (p) => p[1] < Y.elbow - 1.5, { axes: 'xz' });
     coat(vox, `lowerArm${side}`, 'robeDark', (p) => p[1] < Y.wrist + 1.5, { axes: 'xz' });
-    void m;
   }
 }
 
@@ -985,7 +985,6 @@ function ben(vox, s) {
  */
 function vader(vox, s) {
   const { b, Y } = s;
-  const L = limbs(b);
   vox.recolour('neck', () => 'suit');
   // The shoulder armour: a yoke over the shoulders, front and back.
   coat(vox, 'chest', 'plate', (p) => p[1] > Y.chestTop - 3.5);
@@ -1019,10 +1018,9 @@ function vader(vox, s) {
       for (const k of [z0, z0 + 1]) vox.set('chest', i, j, k, j === bot ? 'capeHem' : pleat ? 'capeFold' : 'cape');
     }
   }
-  void L;
 }
 
-/** Emperor Palpablock: a black robe to the shins, bell sleeves, a clasp at the neck; the hood is the head's. */
+/** Emperor Palpablock: a black robe to the ground, bell sleeves, a mantle and a clasp at the neck; the hood is the head's. */
 function emperor(vox, s) {
   const { b, Y } = s;
   vox.recolour('neck', () => 'robe');
@@ -1034,7 +1032,7 @@ function emperor(vox, s) {
   fill(vox, 'chest', [-b.sh - 1, Y.chestTop - 4, -7], [b.sh + 1, Y.chestTop + 1, 6], 'robe', (p) => inRound(p, [-b.sh - 1, Y.chestTop - 7, -7], [b.sh + 1, Y.chestTop + 1, 6], [2.4, 2, 2.6]) && !(Math.abs(p[0]) < 3.5 && p[2] > -4 && p[1] > Y.chestTop - 1));
   vox.set('chest', -1, Y.chestTop - 2, 7, 'clasp');
   vox.set('chest', 0, Y.chestTop - 2, 7, 'clasp');
-  // The robe's skirt, to the shins.
+  // The robe's skirt, to the ground, its hem darker.
   skirt(vox, s, (i, j, k) => (j === 2 ? 'robeFold' : (i + 40) % 4 === 1 && k < 0 ? 'robeFold' : 'robe'), { top: Y.spine, bottom: 2, flare: 3.2, zFlare: 2.6 });
   // A cord at the waist.
   coat(vox, 'hips', 'cord', (p) => p[1] > Y.belt - 0.5, { axes: 'xz' });
@@ -1063,7 +1061,7 @@ const FIGURES = [
   {
     id: 'rebel_heavy', name: 'Rebel Heavy', role: [0, 1], build: 'heavy', dress: rebelHeavy, o: { gloves: true },
     head: (hv) => (skull(hv), face(hv), hair(hv, 'cropped'), beard(hv), beanie(hv)),
-    colours: { skin: 0xd09a74, hair: 0x2c1d14, beard: 0x3a2618, shirt: 0x535a36, pants: 0x46412f, shoes: 0x1e1a16, glove: 0x4a3222, cap: 0x7a3b2a, capRib: 0x6a3224, capCuff: 0x5e2c20, strap: 0x4a3020, cell: 0x9aa0a6, cellCap: 0xc9a44a, belt: 0x4a3020, pouch: 0x5a5236, pack: 0x565c38, packDark: 0x464b2d },
+    colours: { skin: 0xd09a74, hair: 0x2c1d14, beard: 0x3a2618, shirt: 0x535a36, pants: 0x46412f, shoes: 0x1e1a16, glove: 0x4a3222, cap: 0x7a3b2a, capRib: 0x6a3224, capCuff: 0x5e2c20, strap: 0x4a3020, cell: 0x9aa0a6, cellCap: 0xc9a44a, belt: 0x4a3020, pouch: 0x5a5236, pack: 0x6e5a3a, packDark: 0x57472d },
   },
   {
     id: 'rebel_specialist', name: 'Rebel Specialist', role: [0, 2], build: 'slim', dress: rebelScout,
@@ -1071,7 +1069,7 @@ const FIGURES = [
     colours: { skin: 0xe0b08a, hair: 0x5a3a20, shirt: 0x3f4a2e, sleeve: 0x3f4a2e, pants: 0x4d4430, shoes: 0x4a3322, strap: 0x3a2a1c },
   },
   {
-    id: 'imp_trooper', name: 'Stormtrooper', role: [1, 0], build: 'broad', dress: impTrooper, o: { gloves: true },
+    id: 'imp_trooper', name: 'Stormtrooper', role: [1, 0], build: 'broad', dress: trooperArmour, o: { gloves: true },
     head: (hv) => stormHelmet(hv),
     colours: { shirt: SUIT, pants: SUIT, shoes: WHITE, sole: 0x3a3c40 },
   },
