@@ -177,7 +177,20 @@ function muzzleFlash(client: Client, at: Vec3, color: string, size: number) {
 /** Where a bolt landed: on a block, on someone, or nowhere (it flew out of range). */
 function landBullet(client: Client, b: ClientBullet, color: string) {
   if (b.hit === 'block') land(client, b.end, b.normal, b.color!, color, true);
-  else if (b.hit === 'body') burn(client, b.end, color);
+  else if (b.hit === 'body' && !withSaber(client, b.end)) burn(client, b.end, color);
+}
+
+/**
+ * Whether the one a bolt landed on holds a saber: a hero shows their own sparks where they catch
+ * it (the heroes' deflection), and no burn on the chest under them.
+ */
+function withSaber(client: Client, at: Vec3): boolean {
+  for (const f of client.figures.all) {
+    if (!f.held?.item.startsWith('saber_')) continue;
+    const r = f.root.position;
+    if (Math.hypot(at.x - r.x, at.z - r.z) < 1.3 && at.y > r.y - 0.3 && at.y < r.y + 2.6) return true;
+  }
+  return false;
 }
 
 /** A bolt on a block: sparks of its colour and white-hot ones, a scorch, chips, a curl of smoke, a zap. */
