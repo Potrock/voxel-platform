@@ -425,7 +425,7 @@ function isGameKey(code: string): boolean {
 }
 
 /** What a wheel step needs of a `WheelEvent`. */
-export type WheelLike = Pick<WheelEvent, 'deltaY' | 'deltaMode' | 'timeStamp'> & { wheelDeltaY?: number };
+export type WheelLike = Pick<WheelEvent, 'deltaY' | 'deltaMode' | 'timeStamp'> & { deltaX?: number; shiftKey?: boolean; wheelDeltaX?: number; wheelDeltaY?: number };
 
 /**
  * Hotbar steps from the mouse wheel. A notched wheel's click is an event of its own (in lines, or
@@ -442,12 +442,14 @@ export class WheelSteps {
 
   /** Steps (-1, 0 or 1) for one event. */
   step(e: WheelLike): number {
-    const px = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1);
+    // With Shift held (sprinting), a Mac (and Chrome on Windows) turns the wheel's scroll sideways: it's still the wheel.
+    const sideways = !!e.shiftKey && !e.deltaY;
+    const px = (sideways ? (e.deltaX ?? 0) : e.deltaY) * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1);
     if (!(px !== 0)) return 0;
     const dir = Math.sign(px);
     const size = Math.abs(px);
     const t = e.timeStamp;
-    const legacy = e.wheelDeltaY;
+    const legacy = sideways ? e.wheelDeltaX : e.wheelDeltaY;
     const notch = e.deltaMode === 1 || (typeof legacy === 'number' && legacy !== 0 && legacy % 120 === 0);
     const fresh = t - this.t > 120 || dir !== this.dir;
     const push = size > this.size * 1.5 && t - this.stepped > 150;

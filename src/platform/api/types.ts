@@ -2049,7 +2049,7 @@ export interface HudApi {
   marker(id: string, at: Anchor | null, opts?: MarkerOptions): void;
   /** Show or hide the default crosshair. */
   crosshair(visible: boolean): void;
-  /** A round radar in the bottom-right corner; `null` hides it. */
+  /** A round radar, in the bottom-right corner (or where its `at` puts it); `null` hides it. */
   radar(data: RadarData | null): void;
   /** A panel of clickable entries (shops, upgrade trees, level select); releases the mouse while open. The game keeps running. */
   menu(opts: MenuOptions): MenuHandle;
@@ -2177,6 +2177,11 @@ export interface RadarData {
   range: number;
   /** Blips at spots (`x`, `z`, and `y` for the above / below tick), or following things (`at`). */
   blips: RadarBlip[];
+  /**
+   * Where it sits: in a corner of its own, bottom right (the default), or in a place the game's
+   * widgets use (`'top-right'`), under the widgets there (it moves as they grow and shrink).
+   */
+  at?: WidgetAnchor;
 }
 
 export type RadarBlip = ({ x: number; z: number; y?: number } | { at: Anchor }) & { color: string; size?: number };

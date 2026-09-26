@@ -18,8 +18,8 @@ import { STREAK_IDS, STREAKS } from './streaks/kinds';
 
 /**
  * Call of Blocky: fast pulp shootouts against bots and people, on Jackrabbit Lane (a
- * Nuketown-style cul-de-sac) and at Big Kahuna Burger (a burger joint, its parking lot and the
- * motel next door). Three modes (modes.ts):
+ * Nuketown-style cul-de-sac), at Big Kahuna Burger (a burger joint, its parking lot and the motel
+ * next door) and aboard Hijacked's superyacht (overboard is the end of you). Three modes (modes.ts):
  *
  * - **Free-for-all**: first to 25 kills (or the most when the clock runs out). The briefcase turns
  *   up on the street now and then: grab it for points and a radar sweep.
@@ -727,7 +727,9 @@ function personalHud(game: GameContext, f: Fighter, dt: number) {
   const key = `${uav}|${friends.map((b) => b.player.id).join(',')}|${foes.map((b) => b.player.id).join(',')}`;
   if (key !== f.radar) {
     f.radar = key;
+    // Top right, under their dossier (its streak and what the streak's earned).
     p.hud.radar({
+      at: 'top-right',
       center: p,
       range: 48,
       blips: [...friends.map((e) => ({ at: e.player, color: TEAMS[f.team!].color, size: 4 })), ...foes.map((e) => ({ at: e.player, color: uav ? COLORS.pink : COLORS.red, size: 5 }))],
@@ -800,7 +802,7 @@ function skipMatch(game: GameContext) {
 
 /** The menu's pictures: each mode's weapon, each map's own block. */
 const MODE_ICONS: Record<ModeId, IconRef> = { ffa: { item: 'pistol', view: 'side' }, tdm: { item: 'rifle', view: 'side' }, case: { item: 'briefcase' } };
-const MAP_ICONS: Record<string, IconRef> = { jackrabbit: { block: 'neon_cyan' }, kahuna: { block: 'thatch' } };
+const MAP_ICONS: Record<string, IconRef> = { jackrabbit: { block: 'neon_cyan' }, kahuna: { block: 'thatch' }, hijacked: { block: 'porthole' } };
 
 function matchMenu(game: GameContext, p: Player) {
   if (game.room === 'public') {
@@ -986,7 +988,7 @@ export default defineServer(shared, {
       },
     });
     game.commands.register('mode', {
-      usage: '<ffa|tdm|case> [jackrabbit|kahuna]',
+      usage: '<ffa|tdm|case> [jackrabbit|kahuna|hijacked]',
       help: 'Start a match of this mode (on this map)',
       cheat: true,
       run: ([m, where], g) => {
@@ -1097,7 +1099,8 @@ export default defineServer(shared, {
         p.speed = 1;
       }
       const q = p.position;
-      if (q.y < match.map.bounds.min.y - 4) p.damage(1000, { source: 'world', knockback: 0 });
+      // Fallen out of the map, or overboard.
+      if (q.y < (match.map.sea ?? match.map.bounds.min.y - 4)) p.damage(1000, { source: 'world', knockback: 0 });
       if (!p.bot) {
         if (p.input.pressed('KeyL')) loadoutMenu(game, f);
         personalHud(game, f, dt);

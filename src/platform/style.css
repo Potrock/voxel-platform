@@ -1947,7 +1947,7 @@ input[type='range']::-moz-range-thumb {
   top: 12px;
 }
 
-/* Radar (bottom right) */
+/* Radar (bottom right), or in a widget place, after the widgets there (`RadarData.at`) */
 .radar {
   position: absolute;
   right: 16px;
@@ -1955,6 +1955,10 @@ input[type='range']::-moz-range-thumb {
   width: 150px;
   height: 150px;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+.radar.in-slot {
+  position: static;
+  order: 1;
 }
 
 /* Menus (shops, upgrades) */
