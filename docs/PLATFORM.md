@@ -429,10 +429,16 @@ if (s.left > 0) {
 - While it's on, the wheel zooms rather than changing hotbar slots; the number keys still select slots.
 - `orbit(null)` puts them back in first person. Skyship turns it on at the helm: `p.camera.orbit(ship, { offset: { x: 0.5, y: 8, z: -2 }, max: 70 })`.
 
-**A third-person shooter.** Circling a player straight behind their eyes, their own head sits in the middle of the screen. `shoulder: { right, up }` moves the camera that far across and up the view from there (short of a wall), so their figure stands to one side and the middle of the screen is clear. Their eyes aren't on the camera's line any more, so their aim converges: each frame their screen finds the first block or body under the middle of the screen (at least a couple of blocks past their eyes) and turns their look from their eyes to it. That look is what their controls send, so whatever aims by it (guns and their lag compensation, throws, blades, `player.look`, their figure's head) goes where the crosshair is, online as well. `wheel: false` keeps the mouse wheel for the hotbar and the camera at `distance` (give `min` and `max` the same to hold it there). Blockfront plays over the shoulder, and V goes through the eyes and back:
+**A third-person shooter.** Circling a player straight behind their eyes, their own head sits in the middle of the screen. `shoulder: { right, up }` moves the camera that far across and up the view from there, so their figure stands to one side and the middle of the screen is clear. How it behaves:
+- **Where they look** is the camera's: the mouse turns it, and that's what their controls send (where they walk and face, their figure's head, `player.look`), so walking is always straight ahead of the camera.
+- **Where they shoot** converges on the crosshair: their eyes aren't on the camera's line, so a shot or a throw made on their screen (an item kit's `controls`: `c.yaw` / `c.pitch`) goes from their eyes to the first thing under the middle of the screen: someone's figure as it's drawn, or a block from a couple of blocks past their eyes on (cover right in front of them is what their own shot meets anyway). It's worked out at the moment they fire, so what they hit is what the crosshair is on, online too (the host takes each shot's own direction).
+- **The camera's arm** stops short of what's between it and them, probed by several rays a little apart (a wall stops them all; a post, a pole or a fence's bar only one or two, and doesn't pull it in), and it pulls in quickly and lets out slowly, so corners and doorways don't jerk it. Blocks are met as they really are (a slab, a fence where its bars are).
+- **Up close** (their back to a wall), their own figure fades (dithered), so it doesn't fill the view.
+
+`wheel: false` keeps the mouse wheel for the hotbar and the camera at `distance` (give `min` and `max` the same to hold it there). Blockfront plays over the shoulder, and V goes through the eyes and back:
 
 ```ts
-p.camera.orbit(p, { distance: 3.6, min: 3.6, max: 3.6, shoulder: { right: 0.95, up: 0.42 }, wheel: false });
+p.camera.orbit(p, { distance: 3.3, min: 3.3, max: 3.3, shoulder: { right: 0.65, up: 0.5 }, wheel: false });
 ```
 
 ## Players and multiplayer

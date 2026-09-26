@@ -510,12 +510,10 @@ export interface OrbitOptions {
   max?: number;
   /**
    * Over the shoulder (a third-person shooter's camera): the camera this far to the side and up from
-   * straight behind the point it circles, across and up the view, in blocks (`{ right: 0.8, up:
-   * 0.3 }`). The player's figure then stands clear of the middle of the screen, and their aim
-   * converges on what's there: from their eyes to the first block or body under the crosshair, so
-   * what they shoot (and where their figure looks) is what the crosshair is on. Their controls
-   * send that aim, so everything aimed (guns, throws, blades, the game's own `player.look`) goes
-   * there, online too.
+   * straight behind the point it circles, across and up the view, in blocks (`{ right: 0.65, up:
+   * 0.5 }`). Their figure then stands clear of the middle of the screen. Where they look (and walk)
+   * stays the camera's; what they shoot and throw from their screen converges on what's under the
+   * crosshair, from their eyes (see docs/PLATFORM.md, "A third-person shooter").
    */
   shoulder?: { right: number; up: number };
   /** The wheel zooms it (default true); false keeps the wheel for the hotbar, the camera at `distance`. */

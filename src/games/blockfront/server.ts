@@ -44,7 +44,7 @@ const REARM = 4;
 /** Seconds of protection spawning at their side's base. */
 const BASE_PROTECT = 3;
 /** The third-person camera: over the right shoulder, a few blocks back. */
-const SHOULDER = { distance: 3.6, shoulder: { right: 0.95, up: 0.42 } };
+const SHOULDER = { distance: 3.3, shoulder: { right: 0.65, up: 0.5 } };
 
 const BOT_NAMES: [string[], string[]] = [
   ['Sgt. Varno', 'Cpl. Jex', 'Lt. Dray', 'Pvt. Kallis', 'Tamsin', 'Oro Brask', 'Hollis', 'Keet', 'Marn Vosk', 'Pell', 'Sgt. Idrin', 'Coyle', 'Zara Venn', 'Pvt. Olan', 'Dex Farro', 'Nima'],
