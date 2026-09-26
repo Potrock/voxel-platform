@@ -115,12 +115,12 @@ export function heroBots(game: GameContext, rules: HeroBotRules) {
         return;
       }
       if (lightning) c.hold('KeyQ', false);
-      // Shot at from further off: the guard up for a moment (while the meter holds).
-      if (!inReach && hurtLately && d > 5 && m.g > 0 && m.m > GUARD.meter * 0.3 && now > pl.guardAgain) {
-        pl.guardUntil = now + 0.7 + Math.random() * 0.9 * mind.skill;
-        pl.guardAgain = pl.guardUntil + 0.4 + Math.random() * 0.8;
+      // Shot at while closing in: the guard up (it holds while the meter does), down again to strike.
+      if (!inReach && hurtLately && d > 4 && m.g > 0 && m.m > GUARD.meter * 0.25 && now > pl.guardAgain) {
+        pl.guardUntil = now + 1 + Math.random() * 1.2 * (0.5 + mind.skill);
+        pl.guardAgain = pl.guardUntil + 0.3 + Math.random() * 0.6 * (1 - mind.skill);
       }
-      const guard = pl.guardUntil > now && m.g > 0 && m.m > 8 && !inReach;
+      const guard = pl.guardUntil > now && m.g > 0 && m.m > GUARD.meter * 0.12 && d > 3.5;
       c.button(2, guard);
       c.button(0, inReach && !guard && (s?.stagger ?? 0) === 0);
       // A power, now and then (more often the better the bot), when one's ready and worth it.

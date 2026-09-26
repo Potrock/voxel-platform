@@ -60,10 +60,13 @@ export const GUARD = {
   lightningThrough: 0.25,
 };
 
+/** What gets through to a hero: blaster bolts (they shrug off much of it); explosions whole. */
+export const TOUGH = { blaster: 0.6 };
+
 /** How heroes move (the movement ability, `abilities.ts`, and the server's `player.speed`). */
 export const MOVE = {
   /** Times a trooper's speeds. */
-  speed: 1.14,
+  speed: 1.2,
   /** The guard up: times their speed (walking; sprinting it's slower still). */
   block: 0.55,
   blockSprint: 0.42,

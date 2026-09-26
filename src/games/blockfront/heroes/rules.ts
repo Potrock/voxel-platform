@@ -9,7 +9,7 @@ import { HEROES, HERO_IDS, heroNumber, saberOf, type HeroId } from './defs';
 import { FX_ITEMS } from './fxitems';
 import { FORCE, setupPowers, type Powers } from './powers';
 import { bladePoint, sabers, type SaberItem, type Sabers } from './saber';
-import { GUARD, MOVE, POWERS, REGEN } from './tuning';
+import { GUARD, MOVE, POWERS, REGEN, TOUGH } from './tuning';
 import { MSG, p3, type Clash, type Cut, type Deflects } from './wire';
 
 /**
@@ -122,9 +122,14 @@ export function setupHeroes(game: GameContext, rules: HeroRules): Heroes {
     if (hit.cause === 'melee' || hit.cause === 'gun') hurtAt.set(t.id, game.clock.now);
     const k = kind();
     const all = powers.soresu(t);
-    if (!k || !(all || k.guarding(t))) return;
     const from = by?.position ?? hit.from;
-    if (!from || !(all || inFront(t, from, GUARD.arc))) return;
+    const guarded = !!k && (all || k.guarding(t)) && !!from && (all || inFront(t, from, GUARD.arc));
+    // Unguarded (or from the side), a bolt does a hero less harm than a trooper.
+    if (!guarded) {
+      if (hit.cause === 'gun') hit.amount *= TOUGH.blaster;
+      return;
+    }
+    if (!k || !from) return;
     const blade = bladePoint(t);
     if (hit.cause === 'gun' && by) {
       // A bolt: turned aside, or straight back at whoever fired it.
