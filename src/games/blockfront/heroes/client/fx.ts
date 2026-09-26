@@ -3,6 +3,7 @@ import type { Client, ClientKit, Node } from '@platform/client';
 import { Color, Quat, Vec3 as V3 } from '@platform/client/math';
 import { HEROES, saberOf, type HeroId } from '../defs';
 import { fxItem, type FxBeam } from '../fxitems';
+import { drawBolt } from '../../client/bolts';
 import { STYLE } from '../../style';
 import { POWERS } from '../tuning';
 import { BEAM, type Blade, type HeroScene } from './state';
@@ -275,9 +276,8 @@ export function heroFx(scene: HeroScene): ClientKit {
           }
           continue;
         }
+        // (The blade glows on its own: its model's emissive blade. What moves streaks.)
         const beam = BEAM[b.hero];
-        B.keep(`core:${id}`, 'white', b.base, b.tip, 0.028);
-        B.keep(`glow:${id}`, beam, b.base, b.tip, 0.062);
         const was = last.get(id);
         const rage = scene.on(id, 'rage');
         if (was) trail(B, beam, was, b, rage, now);
@@ -304,7 +304,7 @@ export function heroFx(scene: HeroScene): ClientKit {
             fx.particles(at, [1, 0.92, 0.75], { count: 9, speed: 7, size: 0.028, gravity: 12, glow: 4, life: 0.22, spread: 0.04, collide: false });
             fx.particles(at, lin(color), { count: 4, speed: 5, size: 0.03, gravity: 10, glow: 4, life: 0.18, collide: false });
             fx.flare(at, 0.5);
-            fx.tracer(at, { x: m.to[0], y: m.to[1], z: m.to[2] }, color);
+            drawBolt(client, at, { x: m.to[0], y: m.to[1], z: m.to[2] }, color, m.w || undefined);
             break;
           }
           case 'clash': {
@@ -421,14 +421,13 @@ export function heroFx(scene: HeroScene): ClientKit {
         t.node.quaternion.copy(q);
         t.node.scale.setScalar(size);
         t.node.position.set(fl.at.x - c.x, fl.at.y - c.y, fl.at.z - c.z);
-        // Its blade glowing (from about the hilt's end to the tip), its tip streaking.
+        // (Its blade glows on its own.) Its tip streaking round, and ghosts of its blade behind it: a
+        // spinning disc of light that reads from far off.
         const along = new V3(0, 0, 1).applyQuaternion(q);
-        const reach = t.center.z * size;
-        const tip = add(fl.at, along, reach * 1.1);
-        const base = add(fl.at, along, -reach * 0.4);
-        B.keep(`thrown:${id}`, BEAM[heroId], base, tip, 0.06);
-        B.keep(`thrownc:${id}`, 'white', base, tip, 0.026);
+        const reach = t.center.z * size * 1.1;
+        const tip = add(fl.at, along, reach);
         if (t.lastTip) B.line(BEAM[heroId], t.lastTip, tip, 0.05, 0.14, now);
+        B.line(BEAM[heroId], add(fl.at, along, reach * 0.25), tip, 0.035, 0.09, now);
         t.lastTip = tip;
         if (tick % 4 === 0) client.audio.play('bfh_saber_spin', { at: fl.at, volume: 0.6 });
       }

@@ -96,6 +96,8 @@ const sq1 = new Quat();
 const sq2 = new Quat();
 const sq3 = new Quat();
 const UP = new Vec3(0, 1, 0);
+/** Where a saber's blade starts, as a part of the way from the grip to its tip. */
+const BLADE_FROM = 3.75 / 25.625;
 
 /** A rotation from Euler angles (YXZ: turn, then tip, then roll). */
 const rot = (out: Quat, x: number, y = 0, z = 0) => out.setFromEuler(e1.set(x, y, z, 'YXZ'));
@@ -331,11 +333,12 @@ class Poser {
     const now = this.scene.now;
     // The blade as drawn, for the effects: from the hilt's end to the tip.
     if (!sab.hide) {
-      // Its tip: the model's `muzzle` if it marks one, else its far end.
+      // Its tip: the model's `muzzle` if it marks one, else its far end; its blade from the emitter
+      // (the sabers' blades start at 3.75 px of their 25.6 to the tip: `tools/weapons/build.mjs`).
       const g = info.grip;
       const end = this.heldFrom?.points.muzzle?.z ?? this.heldFrom?.bounds.max.z ?? g.z + 1.8;
       const len = end - g.z;
-      const base = node.localToWorld(new Vec3(g.x, g.y, g.z + len * 0.3));
+      const base = node.localToWorld(new Vec3(g.x, g.y, g.z + len * BLADE_FROM));
       const tip = node.localToWorld(new Vec3(g.x, g.y, end));
       this.scene.blades.set(pid, { base: { x: base.x, y: base.y, z: base.z }, tip: { x: tip.x, y: tip.y, z: tip.z }, t: now, hero: this.hero! });
     } else this.scene.blades.delete(pid);
