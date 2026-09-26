@@ -8,8 +8,9 @@ import { math, type VehicleControls, type VehicleDefinition } from '@platform';
  * do to anyone (the blast, the chopper's rounds) is the server's (`streaks/index.ts`), reading
  * the state. A bot flies the same way, the server stepping it with controls of its own.
  *
- * The pilot steers from where they stand (`drive(..., { remote: true })`): their body stays on
- * the ground, frozen, and can be shot.
+ * The Hellstorm is steered from where the pilot stands (`drive(..., { remote: true })`): their
+ * body stays on the ground, frozen, and can be shot. The chopper's pilot is up in it (`drive`):
+ * off the ground until it's over.
  */
 
 const _e = new math.Euler();

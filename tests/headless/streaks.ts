@@ -15,9 +15,11 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 /**
  * Call of Blocky's killstreaks you steer (`streaks/`): the local player calls in a Hellstorm with
  * 5 (4 is still their lethal), steers it down onto a bot standing in the open while their body stays put
- * and frozen, and gets the kill; then flies an attack chopper, works its gun onto another bot and
- * gets that kill; then the chopper is shot down (shots at it, as a gun reports them). Last, a bot
- * earns a Hellstorm, calls it in and flies it onto the player.
+ * and frozen, and gets the kill; then flies an attack chopper (up in it: off the ground, and
+ * nothing hurts them), works its gun onto another bot and gets that kill; then the chopper is shot
+ * down (shots at it, as a gun reports them) and they're back where they called it in. Last, a bot
+ * earns a Hellstorm, calls it in and flies it onto the player; and a bot flies a chopper, its body
+ * up in it and unhurt until it's done.
  */
 export default function streaks() {
   const h = launch('callofblocky', { seed: 11, radius: 5 });
@@ -102,13 +104,20 @@ export default function streaks() {
   const spot2 = open(me.position);
   prey.teleport({ x: spot2.x, y: spot2.y + 0.05, z: spot2.z });
   cob.streaks.earn(mine, 'chopper');
+  const ground = { ...me.position };
   h.step(DT, { pressed: ['Digit5'] });
-  check(vehicle()?.name === 'chopper' && vehicle()!.remote, `5 calls in the chopper (vehicle ${vehicle()?.name})`);
+  check(vehicle()?.name === 'chopper' && !vehicle()!.remote, `5 calls in the chopper, the pilot up in it (vehicle ${vehicle()?.name}, remote ${vehicle()?.remote})`);
   const c0 = { ...(vehicle()!.state as ChopperState) };
   h.run(1, { pilot: () => ({ down: ['KeyW'] }) });
   const c1 = vehicle()!.state as ChopperState;
   const flew = Math.hypot(c1.x - c0.x, c1.z - c0.z);
   check(flew > 4, `W flies the chopper (${flew.toFixed(1)} blocks in a second)`);
+  // Up in it: off the ground (their body with the chopper), out of harm's way, nobody's target.
+  const aboard = Math.hypot(me.position.x - c1.x, me.position.z - c1.z);
+  check(aboard < 1.5 && me.position.y > ground.y + 10, `the pilot's body is up in the chopper, not on the ground (${aboard.toFixed(1)} blocks from it, ${(me.position.y - ground.y).toFixed(1)} up)`);
+  const hp = me.health;
+  me.damage(60, { source: g.bots.all[0], weapon: 'rifle', knockback: 0 });
+  check(me.alive && me.health === hp, `nothing hurts the pilot up there (health ${me.health} of ${hp})`);
   const view = { at: new math.Vector3(), dir: new math.Vector3() };
   t = 0;
   let fired = 0;
@@ -147,6 +156,11 @@ export default function streaks() {
   const downs = h.find('hud', 'feed').filter((c) => JSON.stringify(c.args).includes(' shot down '));
   check(downs.length === 1, 'the feed says who shot it down');
   check(!me.frozen, 'the pilot is back on their feet after the chopper');
+  const back = Math.hypot(me.position.x - ground.x, me.position.y - ground.y, me.position.z - ground.z);
+  check(back < 0.5, `back where they called it in (${back.toFixed(2)} blocks off)`);
+  const hp2 = me.health;
+  me.damage(10, { source: 'world', knockback: 0 });
+  check(me.health < hp2, `and can be hurt again (health ${me.health} of ${hp2})`);
 
   // ---- A bot's Hellstorm ----
   const pilotBotAt = () => g.bots.all.find((b) => b.alive)!.position;
@@ -166,5 +180,22 @@ export default function streaks() {
   const bk = deaths.find((d) => d.weapon === 'hellstorm' && d.by === pilotBot);
   check(calledIn, `the bot called its Hellstorm in`);
   check(bk, `the bot's Hellstorm got someone (${deaths.map((d) => `${d.victim.name} by ${d.weapon}`).join(', ')})`);
-  console.log(`  Hellstorm onto ${target.name} in ${hsTime.toFixed(1)} s · chopper on ${prey.name} in ${chTime.toFixed(1)} s (${fired} rounds) · shot down in ${hits} sniper hits · ${pilotBot.name}'s Hellstorm got ${bk.victim.name} ${botRun.toFixed(1)} s after it was earned`);
+
+  // ---- A bot's chopper: its body rides up in it, unhurt and nobody's target, and comes back down ----
+  h.run(4, { pilot: () => ({}) });
+  const flier = g.bots.all.find((b) => b.alive && !cob.streaks.flying(b))!;
+  const fGround = { ...flier.position };
+  cob.streaks.earn(cob.match.fighters.get(flier.id)!, 'chopper');
+  h.run(12, { pilot: () => ({}), until: () => cob.streaks.flying(flier) });
+  check(cob.streaks.flying(flier), `the bot called its chopper in`);
+  h.run(1, { pilot: () => ({}) });
+  check(flier.position.y > fGround.y + 10, `the bot's body is up in its chopper (${(flier.position.y - fGround.y).toFixed(1)} up)`);
+  const fhp = flier.health;
+  flier.damage(60, { source: me, weapon: 'rifle', knockback: 0 });
+  check(flier.alive && flier.health === fhp, `nothing hurts it up there (health ${flier.health} of ${fhp})`);
+  h.run(CHOPPER.life + 2, { pilot: () => ({}), until: () => !cob.streaks.flying(flier) });
+  check(!cob.streaks.flying(flier), 'its chopper is done');
+  const down = Math.hypot(flier.position.x - fGround.x, flier.position.y - fGround.y, flier.position.z - fGround.z);
+  check(down < 0.5 || !flier.alive, `back where it called it in (${down.toFixed(2)} blocks off)`);
+  console.log(`  Hellstorm onto ${target.name} in ${hsTime.toFixed(1)} s · chopper on ${prey.name} in ${chTime.toFixed(1)} s (${fired} rounds) · shot down in ${hits} sniper hits · ${pilotBot.name}'s Hellstorm got ${bk.victim.name} ${botRun.toFixed(1)} s after it was earned · ${flier.name} flew a chopper`);
 }
