@@ -55,7 +55,9 @@
  *   occlusion in the concave corners baked into tile variants. One material: baseColorTexture,
  *   metallicRoughnessTexture (G roughness, B metalness; the factors 1) and emissiveTexture (what
  *   glows: indicator lights, muzzle rings, lenses, the blades; the platform adds the base colour
- *   times its level times 4 to a figure's, 3 in first person, and blooms what's bright). One
+ *   times its level times 4 to a figure's, 3 in first person, and blooms what's bright). What glows
+ *   is coloured deep (a red light #b00a0a), as the blades are: lit and glowing it comes out a clean
+ *   red on screen, where a bright one (#ff2a2a) would come out salmon. One
  *   mesh; POSITION (with min/max) and NORMAL as floats, TEXCOORD_0 as normalized unsigned shorts,
  *   indices. Node tree: root (named after the item id, extras.title its name) > [mesh node,
  *   marker nodes].
@@ -361,7 +363,7 @@ function muzzleRing(g, r, [x, y], k, glow, bore = 'bore') {
 function impRifle() {
   const g = new Model('imp_rifle', 'E-12 Blaster Rifle', 'blaster').colours({
     black: [0x1d1e22, 0.3, 0.55], blackMatte: [0x202124, 0.75], ribs: [0x2c2d31, 0.75], gunmetal: [0x3c4048, 0.32, 0.8], steel: [0xa8adb4, 0.28, 1],
-    bore: [0x0b0b0d, 0.7], red: [0xff2a2a, 0.4, 0, 1], green: [0x46ff6e, 0.4, 0, 1], ring: [0xff2440, 0.4, 0, 0.85],
+    bore: [0x0b0b0d, 0.7], red: [0xb00a0a, 0.4, 0, 1], green: [0x0e9a2a, 0.4, 0, 1], ring: [0xb0081c, 0.4, 0, 1],
   });
   const YC = 3.4375;
   // The jacket, its rows of holes (the middle of the sides on even voxels, the top and bottom on odd ones), the rear cap and knob.
@@ -405,7 +407,7 @@ function impRifle() {
 function rebelRifle() {
   const g = new Model('rebel_rifle', 'A-28 Blaster Rifle', 'blaster').colours({
     grey: [0x5c6068, 0.34, 0.75], greyDark: [0x3a3d43, 0.36, 0.75], sand: [0xb89a6c, 0.7], sandDark: [0x957a52, 0.72], black: [0x222326, 0.7],
-    steel: [0xa8adb4, 0.28, 1], bore: [0x0b0b0d, 0.7], vent: [0x141416, 0.7], green: [0x46ff6e, 0.4, 0, 1], amber: [0xffb020, 0.4, 0, 1], ring: [0xff6a24, 0.4, 0, 0.85],
+    steel: [0xa8adb4, 0.28, 1], bore: [0x0b0b0d, 0.7], vent: [0x141416, 0.7], green: [0x0e9a2a, 0.4, 0, 1], amber: [0xc07008, 0.4, 0, 1], ring: [0xc04008, 0.4, 0, 1],
   });
   // The receiver, its top angling down at the front; the rail.
   g.prof([[-3.2, 1.9], [-3.2, 4.4], [6.9, 4.4], [8.1, 3.4], [8.1, 1.9]], 3, 'grey');
@@ -445,7 +447,7 @@ function rebelRifle() {
 function impHeavy() {
   const g = new Model('imp_heavy', 'T-22 Repeater', 'blaster').colours({
     black: [0x1d1e22, 0.3, 0.55], blackMatte: [0x202124, 0.75], ribs: [0x2c2d31, 0.75], gunmetal: [0x3c4048, 0.32, 0.8], steel: [0xa8adb4, 0.28, 1],
-    bore: [0x0b0b0d, 0.7], heat: [0x6a1a08, 0.7, 0, 0.35], red: [0xff2a2a, 0.4, 0, 1], ring: [0xff2440, 0.4, 0, 0.85],
+    bore: [0x0b0b0d, 0.7], heat: [0x6a1a08, 0.7, 0, 0.35], red: [0xb00a0a, 0.4, 0, 1], ring: [0xb0081c, 0.4, 0, 1],
   });
   const YC = 3.4375;
   // The receiver: boxy, its top edges bevelled; its left side's power pack with a row of lights.
@@ -491,8 +493,8 @@ function impHeavy() {
 function rebelHeavy() {
   const g = new Model('rebel_heavy', 'Z-7 Rotary Blaster', 'blaster').colours({
     grey: [0x4c5159, 0.34, 0.75], greyDark: [0x33363c, 0.36, 0.75], barrel: [0x26282c, 0.3, 0.7], steel: [0xa8adb4, 0.28, 1], sand: [0xb89a6c, 0.7], sandDark: [0x957a52, 0.72],
-    olive: [0x5b6446, 0.6, 0.2], oliveDark: [0x444b34, 0.62, 0.2], orange: [0xf08a24, 0.5], bore: [0x0b0b0d, 0.7], amber: [0xffb020, 0.4, 0, 1], green: [0x46ff6e, 0.4, 0, 1],
-    tip: [0xff6a24, 0.4, 0, 1],
+    olive: [0x5b6446, 0.6, 0.2], oliveDark: [0x444b34, 0.62, 0.2], orange: [0xf08a24, 0.5], bore: [0x0b0b0d, 0.7], amber: [0xc07008, 0.4, 0, 1], green: [0x0e9a2a, 0.4, 0, 1],
+    tip: [0xc04008, 0.4, 0, 1],
   });
   const YC = 3.4375;
   const jc = g.cell(1, YC);
@@ -540,11 +542,11 @@ function scope(g, { sc, z0, z1, seat, rings, tube = 0.9, bell = 1.45, obj = 1.8,
     g.disc(tube + 0.35, [0, sc], [z, z + 0.625], mount);
   }
   const kr = g.cell(2, z0 + 1e-6), kf = g.cell(2, z1 - 1e-6);
-  g.disc(bell, [0, sc], [z0, z0 + 1.875], (i, j, k) => (k === kr ? (Math.hypot(g.c(0, i), g.c(1, j) - sc) < 0.7 ? lens : rim) : body));
+  g.disc(bell, [0, sc], [z0, z0 + 1.875], (i, j, k) => (k === kr ? (Math.hypot(g.c(0, i), g.c(1, j) - sc) < 0.9 ? lens : rim) : body));
   g.disc(obj, [0, sc], [z1 - 2.5, z1], (i, j, k) => {
     if (k !== kf) return body;
     const r = Math.hypot(g.c(0, i), g.c(1, j) - sc);
-    return r > 1.3 ? rim : r > 0.7 ? glint : i === 0 && j === g.cell(1, sc) + 1 ? hot : lens;
+    return r > 1.3 ? rim : r > 0.9 ? glint : i === 0 && j === g.cell(1, sc) + 1 ? hot : lens;
   });
   // The turrets: elevation on top, windage on the right.
   const kt = g.cell(2, (z0 + z1) / 2);
@@ -557,7 +559,7 @@ function scope(g, { sc, z0, z1, seat, rings, tube = 0.9, bell = 1.45, obj = 1.8,
 function impSniper() {
   const g = new Model('imp_sniper', 'E-12 Sniper', 'blaster').colours({
     black: [0x1d1e22, 0.3, 0.55], blackMatte: [0x202124, 0.75], ribs: [0x2c2d31, 0.75], gunmetal: [0x3c4048, 0.32, 0.8], steel: [0xa8adb4, 0.28, 1],
-    bore: [0x0b0b0d, 0.7], red: [0xff2a2a, 0.4, 0, 1], ring: [0xff2440, 0.4, 0, 0.85],
+    bore: [0x0b0b0d, 0.7], red: [0xb00a0a, 0.4, 0, 1], ring: [0xb0081c, 0.4, 0, 1],
     scope: [0x222328, 0.32, 0.45], lens: [0x10161a, 0.05, 0.3], glint: [0xd01c28, 0.08, 0.2, 0.7], hot: [0xffd6c4, 0.1, 0, 1],
   });
   const YC = 3.4375;
@@ -594,7 +596,7 @@ function impSniper() {
 function rebelSniper() {
   const g = new Model('rebel_sniper', 'Longshot Cycler', 'blaster').colours({
     wood: [0x6e4428, 0.62], woodLight: [0x8a5a34, 0.6], cloth: [0xbfa57c, 0.9], clothDark: [0x9c8560, 0.9], brass: [0xc9a152, 0.3, 1], brassDark: [0x9a7a3a, 0.35, 1],
-    iron: [0x3d3b38, 0.4, 0.7], ironDark: [0x2a2927, 0.45, 0.7], bore: [0x0b0b0d, 0.7], green: [0x46ff6e, 0.4, 0, 1], ring: [0xff6a24, 0.4, 0, 0.85],
+    iron: [0x3d3b38, 0.4, 0.7], ironDark: [0x2a2927, 0.45, 0.7], bore: [0x0b0b0d, 0.7], green: [0x0e9a2a, 0.4, 0, 1], ring: [0xc04008, 0.4, 0, 1],
     scope: [0x2a2622, 0.38, 0.4], lens: [0x10161a, 0.05, 0.3], glint: [0x2aa8d8, 0.08, 0.2, 0.6], hot: [0xe8fbff, 0.1, 0, 1],
   });
   // The stock: long and slim, curving down to a broad butt; cloth wound round its wrist.
@@ -625,7 +627,7 @@ function rebelSniper() {
 function impPistol() {
   const g = new Model('imp_pistol', 'Scout Blaster Pistol', 'blaster').colours({
     black: [0x1d1e22, 0.3, 0.55], blackMatte: [0x202124, 0.75], ribs: [0x2c2d31, 0.75], gunmetal: [0x3c4048, 0.32, 0.8], steel: [0xa8adb4, 0.28, 1],
-    bore: [0x0b0b0d, 0.7], vent: [0x0f0f11, 0.7], red: [0xff2a2a, 0.4, 0, 1], ring: [0xff2440, 0.4, 0, 0.85], anod: [0x2a2c31, 0.45, 0.4],
+    bore: [0x0b0b0d, 0.7], vent: [0x0f0f11, 0.7], red: [0xb00a0a, 0.4, 0, 1], ring: [0xb0081c, 0.4, 0, 1], anod: [0x2a2c31, 0.45, 0.4],
   });
   // The frame, the steep grip (ribbed), its heel; the guard and trigger.
   g.prof([[-2.4, 3.1], [6.9, 3.1], [6.9, 2.1], [1.9, 2.1], [1.4, 1.25], [-1.4, 1.25], [-2.6, 2.4]], 3, 'gunmetal');
@@ -633,9 +635,9 @@ function impPistol() {
   g.pbox(1, [0, 0.625], [1.25, 4.375], 'gunmetal');
   g.pbox(1, [0, 1.875], [3.75, 4.375], 'gunmetal');
   g.box([0, 2, 3], [1, 3, 4], 'steel');
-  // The slide: long and black, a row of vents along its top half, a red power light at its back.
+  // The slide: long and black, a row of vents along its top half, a red power light on its left.
   g.pbox(3, [3.125, 5.0], [-2.5, 7.5], (i, j, k) => (Math.abs(i) === 1 && j === 7 && k >= 2 && k <= 10 && k % 2 === 0 ? 'vent' : 'black'));
-  g.box([0, 6, -5], [1, 7, -4], 'red');
+  g.set(1, 6, -3, 'red');
   // The barrel out of the slide's front, its shroud; the glowing muzzle.
   g.disc(0.7, [0, 4.0625], [7.5, 10.0], 'gunmetal');
   g.pbox(3, [3.125, 3.75], [7.5, 8.75], 'black');
@@ -650,7 +652,7 @@ function impPistol() {
 function rebelPistol() {
   const g = new Model('rebel_pistol', 'Heavy Blaster Pistol', 'blaster').colours({
     black: [0x1d1e22, 0.3, 0.55], blackMatte: [0x222326, 0.75], gunmetal: [0x3c4048, 0.32, 0.8], steel: [0xa8adb4, 0.28, 1], wood: [0x4a2e1c, 0.55], woodDark: [0x38210f, 0.6],
-    bore: [0x0b0b0d, 0.7], blue: [0x3cb4ff, 0.4, 0, 1], ring: [0xff6a24, 0.4, 0, 0.9],
+    bore: [0x0b0b0d, 0.7], blue: [0x1664d4, 0.4, 0, 1], ring: [0xc04008, 0.4, 0, 1],
   });
   const YC = 3.4375;
   // The receiver: long, flat-sided, its hammer behind.
@@ -678,28 +680,25 @@ function rebelPistol() {
 // ---------------------------------------------------------------------------------------------
 // The thermal detonator
 
-/** Thermal Detonator: a steel ball, a raised band round its middle of dark panels and blinking red lights, the arming lever on top. */
+/** Thermal Detonator: a bright steel ball, a raised band round its middle of dark panels between blinking red lights, the arming lever on top. */
 function detonator() {
   const g = new Model('detonator', 'Thermal Detonator', 'detonator', { offset: [-0.5, -0.5, -0.5] }).colours({
-    steel: [0xb8bcc2, 0.26, 1], steelDark: [0x80858c, 0.3, 1], band: [0x2c2e33, 0.4, 0.6], red: [0xff2a2a, 0.4, 0, 1], amber: [0xffb020, 0.4, 0, 1], lever: [0x46494f, 0.35, 0.8],
+    steel: [0xd4d8de, 0.24, 1], steelDark: [0x8a9098, 0.3, 1], band: [0x2c2e33, 0.4, 0.6], red: [0xb00a0a, 0.4, 0, 1], lever: [0x46494f, 0.35, 0.8],
   });
   g.ball(2.2, [0, 0, 0], 'steel');
-  // The band: a voxel proud of the ball round its middle, dark, its panels' lights.
+  // The band: a voxel proud of the ball round its middle, lights and dark panels by turns all round it.
   for (let k = -4; k <= 4; k++)
     for (let i = -4; i <= 4; i++) {
       const r = Math.hypot(g.c(0, i), g.c(2, k));
       if (r > 2.45) continue;
-      const a = Math.atan2(g.c(2, k), g.c(0, i));
-      const n = Math.floor(((a / (2 * Math.PI)) * 12 + 12.5) % 12);
-      const outer = r > 1.9;
-      g.set(i, 0, k, outer ? (n % 3 === 0 ? 'red' : n % 3 === 1 ? 'band' : n === 5 ? 'amber' : 'band') : 'band');
+      const n = Math.floor(((Math.atan2(g.c(2, k), g.c(0, i)) / (2 * Math.PI)) * 12 + 12.5) % 12);
+      g.set(i, 0, k, r > 1.9 && n % 2 === 0 ? 'red' : 'band');
     }
   // Seams above and below the band.
   g.paint([-4, 1, -4], [5, 2, 5], (i, j, k) => (Math.hypot(g.c(0, i), g.c(2, k)) > 1.7 ? 'steelDark' : undefined));
   g.paint([-4, -1, -4], [5, 0, 5], (i, j, k) => (Math.hypot(g.c(0, i), g.c(2, k)) > 1.7 ? 'steelDark' : undefined));
-  // The arming lever on top: its hinge post and the lever laid back along it.
-  g.box([0, 4, -1], [1, 5, 0], 'lever');
-  g.box([0, 4, 0], [1, 5, 3], 'lever');
+  // The arming lever on top: its hinge post and the lever laid back along it, a red button under its tip.
+  g.box([0, 4, -1], [1, 5, 3], 'lever');
   g.box([0, 3, 2], [1, 4, 3], 'red');
   return g.mark('grip', [0, 0, 0]);
 }
@@ -740,7 +739,7 @@ function saber(id, name, blade_, colours, hilt) {
 /** Luke's (the green one): black and silver, a silver pommel and emitter shroud, a grooved black grip, the control box with its switch. */
 function saberLuke() {
   return saber('saber_luke', "Luke Skyblocker's saber", 0x0c8418, {
-    black: [0x1c1d20, 0.35, 0.5], blackMatte: [0x202124, 0.8], silver: [0xc8ccd2, 0.22, 1], silverDark: [0x8e939a, 0.28, 1], red: [0xff2a2a, 0.4, 0, 1],
+    black: [0x1c1d20, 0.35, 0.5], blackMatte: [0x202124, 0.8], silver: [0xc8ccd2, 0.22, 1], silverDark: [0x8e939a, 0.28, 1], red: [0xb00a0a, 0.4, 0, 1],
   }, (g, ring, square) => {
     // The pommel: a silver cap, a ring.
     square(-3, -2, 'silver');
@@ -778,7 +777,7 @@ function saberBen() {
 /** Vader's (a red one): a black pommel, raised black tracks down a silver grip, the clamp and its switch box, a black shroud round the emitter. */
 function saberVader() {
   return saber('saber_vader', "Darth Voxel's saber", 0xa00808, {
-    silver: [0xc8ccd2, 0.22, 1], silverDark: [0x8e939a, 0.28, 1], black: [0x17181b, 0.35, 0.5], blackMatte: [0x1c1d20, 0.8], red: [0xff2a2a, 0.4, 0, 1], green: [0x46ff6e, 0.4, 0, 1],
+    silver: [0xc8ccd2, 0.22, 1], silverDark: [0x8e939a, 0.28, 1], black: [0x17181b, 0.35, 0.5], blackMatte: [0x1c1d20, 0.8], red: [0xb00a0a, 0.4, 0, 1], green: [0x0e9a2a, 0.4, 0, 1],
   }, (g, ring, square) => {
     // The pommel: black, a silver ring.
     square(-3, -2, 'black');

@@ -32,10 +32,10 @@ const blaster = (id: string, team: 0 | 1, sound: string, compact = false): ItemL
 
 /**
  * How a hero holds a saber, over the figures' sword (the katana's, across the chest, hidden from the
- * camera over the shoulder): both hands low at the right hip, the blade raised forward and out to
- * the right, where the shoulder camera sees it; the swing lifts and chops from there.
+ * camera over the shoulder): both hands low at the right hip, the blade raised almost upright and
+ * out to the right, over the shoulder the camera looks past; the swing lifts and chops from there.
  */
-const SABER: ItemPoses = { sword: { offset: [-0.3, -0.3, 0.25], turn: [-1.1, -0.9, 0] } };
+const SABER: ItemPoses = { sword: { offset: [-0.3, -0.3, 0.22], turn: [-1.35, -0.8, 0] } };
 
 export const LOOKS: Record<string, ItemLook> = {
   rebel_rifle: blaster('rebel_rifle', 0, 'blaster_rifle'),
