@@ -20,18 +20,20 @@ export default defineMeta({
     ['F', 'plant · crack the case (hold)'],
     ['L', 'loadout'],
     ['M', 'mode and map (your own game)'],
+    ['V', 'vote to skip this mode and map'],
     ['Tab', 'scores'],
   ],
   // Controllers: the platform's shooter layout (RT fire, LT aim, X reload, B crouch and slide,
   // L3 sprint, LB / Y switch weapons), with the lethal on RB (hold to cook), the loadout on the
-  // D-pad's up, planting and cracking the case on its down, the mode and map on its right, and
-  // the katana on R3.
+  // D-pad's up, planting and cracking the case on its down, the mode and map on its right, the
+  // vote to skip on its left, and the katana on R3.
   gamepad: {
     R3: ['Digit3', 'katana'],
     RB: ['KeyG', 'lethal'],
     Up: 'KeyL',
     Down: ['KeyF', 'plant · crack'],
     Right: ['KeyM', 'mode and map'],
+    Left: ['KeyV', 'vote to skip'],
   },
   instances: true,
 });
