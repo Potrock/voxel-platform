@@ -26,6 +26,7 @@ export async function devGames(): Promise<GameDefinition[]> {
     import('./gallery/server'),
     import('./callofblocky/previews/map.server'),
     import('./callofblocky/previews/guns.server'),
+    import('./blockfront/previews/arsenal.server'),
     import('./blockfront/previews/map.server'),
     import('./moves/server'),
     import('./highnoon/server'),

@@ -122,12 +122,22 @@ export class EntityView {
     for (const f of entities) {
       seen.add(f.id);
       let v = this.shown.get(f.id);
-      if (!v) {
+      // New, or its model changed (a player's `setModel`): its model, once its file is here (a
+      // figure changing model keeps the old one till then).
+      if (!v || v.figure.type !== f.type) {
         const def = this.content.entities.get(f.type);
-        if (!def) continue;
-        // A glTF model whose file hasn't arrived yet: drawn once it has.
-        const model = this.graphics.figure(def.model);
-        if (!model) continue;
+        const model = def ? this.graphics.figure(def.model) : null;
+        if (!def || !model) {
+          if (!v) continue;
+          v.frame = f;
+          this.draw(v, f, dt, running);
+          this.drawn.push(v);
+          continue;
+        }
+        if (v) {
+          this.drop(v);
+          this.shown.delete(f.id);
+        }
         this.scene.add(model.root);
         const anim: AnimState = { walkPhase: 0, walkAmount: 0, pace: 0, attackT: 9, raised: false, casting: false, headYaw: 0, headPitch: 0, dying: 0, time: 0, aim: 0, posture: 0, speed: 0, moveX: 0, moveZ: 1, sights: 0, shotT: 9 };
         v = {
@@ -154,9 +164,7 @@ export class EntityView {
     }
     for (const [id, v] of this.shown) {
       if (seen.has(id)) continue;
-      this.hold(v, null);
-      v.model.root.removeFromParent();
-      v.model.dispose();
+      this.drop(v);
       this.shown.delete(id);
     }
     this.list = this.drawn.map((v) => v.figure);
@@ -298,6 +306,13 @@ export class EntityView {
    * hangs from the hand as its model has it until client code places it (`client.figures`: the
    * figures kit puts a humanoid's gun in both its hands, anything else in its fist).
    */
+  /** A figure's gone (or its model is replaced): what it holds, and its model, go. */
+  private drop(v: Shown) {
+    this.hold(v, null);
+    v.model.root.removeFromParent();
+    v.model.dispose();
+  }
+
   private hold(v: Shown, item: string | null) {
     v.held = item;
     if (v.heldMesh) {

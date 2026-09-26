@@ -33,6 +33,9 @@ interface Tracer {
   dir: THREE.Vector3;
   length: number;
   travelled: number;
+  /** Blocks a second, and the streak's own length. */
+  speed: number;
+  streak: number;
 }
 
 /** A hole on a wall, fading after a while. */
@@ -166,8 +169,11 @@ export class Effects implements FxApi {
     }
   }
 
-  /** A bullet's tracer, from a muzzle to where it landed. */
-  tracer(from: Vec3, to: Vec3, color = '#ffd27a') {
+  /**
+   * A bullet's tracer, from a muzzle to where it landed: a streak `length` blocks long and `width`
+   * across racing there at `speed` blocks a second, `glow` bright (see `ClientFx.tracer`).
+   */
+  tracer(from: Vec3, to: Vec3, color = '#ffd27a', opts: { speed?: number; length?: number; width?: number; glow?: number } = {}) {
     const f = new THREE.Vector3(from.x, from.y, from.z);
     const dir = new THREE.Vector3(to.x - from.x, to.y - from.y, to.z - from.z);
     const length = dir.length();
@@ -177,7 +183,7 @@ export class Effects implements FxApi {
       vertexShader: Shaders.fx.vertex,
       fragmentShader: Shaders.fx.fragment,
       glslVersion: THREE.GLSL3,
-      uniforms: { uColor: { value: new THREE.Color(color) }, uIntensity: { value: 6 }, uTime: { value: 0 }, uMode: { value: 3 } },
+      uniforms: { uColor: { value: new THREE.Color(color) }, uIntensity: { value: opts.glow ?? 6 }, uTime: { value: 0 }, uMode: { value: 3 } },
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -190,9 +196,11 @@ export class Effects implements FxApi {
     }
     group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
     group.position.copy(f);
-    group.scale.set(1, 1, 0.001);
+    // The quads are 0.06 across.
+    const across = (opts.width ?? 0.06) / 0.06;
+    group.scale.set(across, across, 0.001);
     this.fxScene.add(group);
-    this.tracers.push({ mesh: group, material, from: f, dir, length, travelled: 0 });
+    this.tracers.push({ mesh: group, material, from: f, dir, length, travelled: 0, speed: opts.speed ?? TRACER_SPEED, streak: opts.length ?? TRACER_LENGTH });
   }
 
   /**
@@ -288,9 +296,9 @@ export class Effects implements FxApi {
 
     for (let i = this.tracers.length - 1; i >= 0; i--) {
       const t = this.tracers[i];
-      t.travelled += TRACER_SPEED * dt;
+      t.travelled += t.speed * dt;
       const head = Math.min(t.length, t.travelled);
-      const tail = Math.max(0, t.travelled - TRACER_LENGTH);
+      const tail = Math.max(0, t.travelled - t.streak);
       if (tail >= t.length) {
         this.fxScene.remove(t.mesh);
         t.material.dispose();
@@ -298,7 +306,7 @@ export class Effects implements FxApi {
         continue;
       }
       t.mesh.position.copy(t.from).addScaledVector(t.dir, tail);
-      t.mesh.scale.set(1, 1, Math.max(0.001, head - tail));
+      t.mesh.scale.z = Math.max(0.001, head - tail);
     }
     for (let i = this.decals.length - 1; i >= 0; i--) {
       const d = this.decals[i];
