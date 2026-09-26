@@ -368,7 +368,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       const mid = { x: t.position.x, y: t.position.y + 0.9, z: t.position.z };
       if (toSegment(mid, { x: a.x, y: a.y + 0.9, z: a.z }, { x: b.x, y: b.y + 0.9, z: b.z }) > R.radius) continue;
       r.cut.add(t.id);
-      hurt(t, R.damage * heroScale(t), p, FORCE.rush, 0.8);
+      if (!hurt(t, R.damage * heroScale(t), p, FORCE.rush, 0.8)) continue;
       game.clients.send('all', MSG.cut, { p: p.id, at: p3(chest(t)) });
       game.audio.play('bfh_saber_hit', { at: chest(t) });
     }
@@ -391,7 +391,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       const mid = { x: v.position.x, y: v.position.y + 1, z: v.position.z };
       if (toSegment(mid, th.last, at) > P.radius) continue;
       cut.add(v.id);
-      hurt(v, P.damage * heroScale(v), p, FORCE.throw, 0.6);
+      if (!hurt(v, P.damage * heroScale(v), p, FORCE.throw, 0.6)) continue;
       game.clients.send('all', MSG.cut, { p: p.id, at: p3(chest(v)) });
       game.audio.play('bfh_saber_hit', { at: chest(v) });
     }

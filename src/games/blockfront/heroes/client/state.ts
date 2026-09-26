@@ -81,6 +81,12 @@ export class HeroScene {
   blades = new Map<string, Blade>();
   hands = new Map<string, { l: Vec3; r: Vec3; t: number }>();
   news: News[] = [];
+  /**
+   * Development: hold every hero figure at one moment of a swing (`swing: [n, u]`, u 0..1 of the
+   * way through) or in an act (`act: [k, t]`, t seconds in), to look at the poses
+   * (`window.__heroes.debug`, in a development build).
+   */
+  debug: { swing?: [number, number]; act?: [Act['k'], number]; guard?: boolean } | null = null;
 
   /** A lasting power of theirs, on now. */
   on(id: string, k: 'soresu' | 'rage' | 'aura' | 'lightning' | 'choke'): boolean {
@@ -256,6 +262,9 @@ export class HeroScene {
 export function heroState(scene: HeroScene): ClientKit {
   return {
     name: 'blockfront.heroes.state',
+    setup() {
+      if (import.meta.env.DEV) (globalThis as { __heroes?: HeroScene }).__heroes = scene;
+    },
     frame(client: Client) {
       scene.now = client.time;
       scene.news = [];

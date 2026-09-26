@@ -1,15 +1,29 @@
 import type { HumanoidPoses } from '@platform';
 import type { Client, ClientKit, Figure, FigureHeld, FigureNode, FigureRig, FigureState } from '@platform/client';
 import { Euler, Mat4, Quat, Vec3 } from '@platform/client/math';
+import type { HeroId } from '../../defs';
+import { HeroScene, type Victim } from '../state';
 import { heldInfo, inFist, type HeldInfo } from './held';
 import { DEFAULT_POSES, resolvePoses, type Poses } from './poses';
+import { saberPose, stanceOf, type Gesture, type SaberKey, type SaberPose } from './saber';
 
 export interface HumanoidOptions {
   /** Poses for every humanoid (under each model's own `poses`, and each item's `hold.poses`). */
   poses?: HumanoidPoses;
+  /** What the heroes are doing (their sabers, their powers, who they hold): `../state.ts`. */
+  scene: HeroScene;
 }
 
 /**
+ * Blockfront's copy of the platform's figures kit (`src/platform/client-kits/figures/`), with the
+ * heroes in it: a hero's saber held in their stance (each hero's own), swung through the combo's
+ * three slashes, raised to guard (twitching to each bolt it turns), knocked back when parried; the
+ * Force powers' gestures (a hand thrust out to push, pull or choke, both for lightning, the arm
+ * that threw the saber waiting for it); and whoever a power has hold of: clutching at their throat
+ * with their feet kicking, reaching as they're dragged in, flung back. Each hero's blade and hands
+ * as drawn go into the scene for the effects (`../fx.ts`). Everything else is the platform's kit
+ * as it was.
+ *
  * Humanoid figures (docs/HUMANOID.md), animated in code from what they're doing: a gait worked
  * out from their speed and which way they go (feet planted and stepping, the legs bent to reach
  * them), crouching, sliding and jumping; the head and chest turned to look; a gun in both hands
@@ -22,12 +36,12 @@ export interface HumanoidOptions {
  * Figures that aren't on the rig animate themselves; the kit only puts what they hold in their
  * fist.
  */
-export function humanoid(opts: HumanoidOptions = {}): ClientKit {
+export function humanoid(opts: HumanoidOptions): ClientKit {
   const base = opts.poses ? resolvePoses(opts.poses) : DEFAULT_POSES;
   const posers = new WeakMap<Figure, Poser>();
   const fisted = new WeakMap<Figure, FigureHeld | null>();
   return {
-    name: 'figures.humanoid',
+    name: 'blockfront.heroes.figures',
     frame(client: Client) {
       for (const fig of client.figures.all) {
         if (!fig.rig) {
@@ -37,7 +51,7 @@ export function humanoid(opts: HumanoidOptions = {}): ClientKit {
           continue;
         }
         let p = posers.get(fig);
-        if (!p) posers.set(fig, (p = new Poser(fig, fig.rig, resolvePoses(fig.spec.gltf?.poses, base))));
+        if (!p) posers.set(fig, (p = new Poser(fig, fig.rig, resolvePoses(fig.spec.gltf?.poses, base), opts.scene)));
         p.frame();
         fig.posed = true;
       }
@@ -72,6 +86,16 @@ const h2 = new Vec3();
 const h3 = new Vec3();
 const hq = new Quat();
 const e1 = new Euler(0, 0, 0, 'YXZ');
+// Scratch for the heroes' poses.
+const s1 = new Vec3();
+const s2 = new Vec3();
+const s3 = new Vec3();
+const s4 = new Vec3();
+const s5 = new Vec3();
+const sq1 = new Quat();
+const sq2 = new Quat();
+const sq3 = new Quat();
+const UP = new Vec3(0, 1, 0);
 
 /** A rotation from Euler angles (YXZ: turn, then tip, then roll). */
 const rot = (out: Quat, x: number, y = 0, z = 0) => out.setFromEuler(e1.set(x, y, z, 'YXZ'));
@@ -105,11 +129,15 @@ class Poser {
   /** The body's turn in the world, and where it looks (this frame). */
   private bodyQ = new Quat();
   private aimQ = new Quat();
+  /** The hero whose saber it holds (a model), and their stance as it eases from one to the next. */
+  private hero: HeroId | null = null;
+  private stance: SaberKey | null = null;
 
   constructor(
     private fig: Figure,
     private rig: FigureRig,
     readonly poses: Poses,
+    private scene: HeroScene,
   ) {
     this.j = rig.joints;
     this.body = rig.body;
@@ -135,6 +163,8 @@ class Poser {
     this.heldFrom = h;
     this.held = null;
     const info = h ? heldInfo(h) : null;
+    this.hero = info ? HeroScene.heroOf(h?.item) : null;
+    this.stance = this.hero ? stanceOf(this.hero) : null;
     this.heldPoses = info?.poses ? resolvePoses(info.poses, this.poses) : this.poses;
     if (!h) return;
     const mount = h.mount;
@@ -191,6 +221,10 @@ class Poser {
     const look = clamp(-s.headPitch, -1.25, 1.25);
     const held = this.held?.info.kind ?? null;
     const twoHanded = held === 'gun' || held === 'melee';
+    const pid = this.fig.player;
+    // A hero with their saber: its pose (the stance, a swing, a power's gesture) this frame.
+    const sab = this.hero && this.stance && pid && s.dying <= 0 ? saberPose(this.scene, pid, this.hero, { run: clamp01(((s.speed ?? 0) - G.run[0]) / (G.run[1] - G.run[0])) * clamp01(s.walkAmount * 1.5), air: !!s.air, dt, smoothed: this.stance }) : null;
+    const victim = pid && s.dying <= 0 ? this.scene.victim(pid) : null;
     const stance = this.held?.stance === 'pistol' ? this.heldPoses.pistol : this.heldPoses.rifle;
     this.sprint += ((s.sprint && held === 'gun' ? 1 : 0) - this.sprint) * clamp01(dt * 10);
     this.reload += ((s.reloading && held === 'gun' ? 1 : 0) - this.reload) * clamp01(dt * 12);
@@ -215,13 +249,13 @@ class Poser {
 
     // The hips: down to crouch and further to slide, a bob and a sway as it steps, leaning back to slide.
     const bob = moving * pace(G.bob, run) * (1 - Math.cos(ph * 2)) * 0.5;
-    hips.position.set(hipRest.x + Math.sin(ph) * G.sway * moving * (1 - run), hipRest.y - crouch * G.crouch - slide * 0.12 - bob, hipRest.z - slide * 0.05);
+    hips.position.set(hipRest.x + Math.sin(ph) * G.sway * moving * (1 - run), hipRest.y - crouch * G.crouch - slide * 0.12 - bob - (sab?.drop ?? 0), hipRest.z - slide * 0.05);
     rot(q1, -0.55 * slide, 0, 0);
     hips.quaternion.multiply(q1);
     // The back: leaning into a run, a crouch; a twist to shoulder a gun; breathing.
-    const lean = moving * pace(G.lean, run) + crouch * 0.16 * (1 - slide) + 0.3 * slide;
+    const lean = moving * pace(G.lean, run) + crouch * 0.16 * (1 - slide) + 0.3 * slide + (sab?.key.lean ?? 0) + (victim ? this.victimLean(victim) : 0);
     const breathe = Math.sin(s.time * 1.9) * 0.012;
-    const twist = held === 'gun' ? stance.twist * (1 - this.sprint) : 0;
+    const twist = held === 'gun' ? stance.twist * (1 - this.sprint) : (sab?.key.twist ?? 0);
     rot(q1, lean * 0.45, twist * 0.4, 0);
     j.spine.quaternion.multiply(q1);
     // Aiming, the chest takes part of the look (the gun takes the rest, about the shoulders).
@@ -236,17 +270,177 @@ class Poser {
     const scale = v5.setFromMatrixScale(this.body.matrixWorld).x || 1;
     const aimQ = rot(this.aimQ, -look, s.headYaw * 0.5, 0).premultiply(bodyQ);
 
-    if (twoHanded) this.poseHeld(s, aimQ, bodyQ, scale);
+    if (sab) this.poseSaber(sab, look, aimQ, bodyQ, scale);
+    else if (twoHanded) this.poseHeld(s, aimQ, bodyQ, scale);
     else this.swingArms(s, ph, moving, run, air);
 
     this.legs(s, ph, moving, run, crouch, slide, air, bodyQ);
+    if (victim) this.victimPose(victim, s, bodyQ, scale);
 
     // The head looks where it looks, whatever the body's doing.
     const head = j.head;
     rot(q1, -look, s.headYaw, held === 'gun' ? stance.cheek * (s.sights ?? 0) : 0).premultiply(bodyQ);
     j.neck.getWorldQuaternion(q2);
     head.quaternion.copy(q2.invert().multiply(q1));
-    if (held === 'other') this.inFist();
+    // Choked: the head thrown back.
+    if (victim?.kind === 'choke') head.quaternion.multiply(rot(q1, -0.55 + Math.sin(s.time * 13) * 0.08, Math.sin(s.time * 7) * 0.2, 0));
+    if (held === 'other' && !victim) this.inFist();
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Heroes
+
+  /** The frame a hero's saber pose is in: the body's, turned up or down with half the look. */
+  private saberFrame(bodyQ: Quat, look: number, out: Quat): Quat {
+    return out.copy(bodyQ).multiply(rot(sq3, -look * 0.5, 0, 0));
+  }
+
+  /**
+   * A fist's turn in the world holding something pointing along `dir` at `at`, the forearm back
+   * toward the shoulder (so the wrist stays natural whichever way the blade points).
+   */
+  private fistQ(dir: Vec3, at: Vec3, shoulder: Vec3, out: Quat): Quat {
+    const y = s4.subVectors(shoulder, at);
+    y.addScaledVector(dir, -y.dot(dir));
+    if (y.lengthSq() < 1e-6) y.copy(UP).addScaledVector(dir, -dir.y);
+    y.normalize();
+    const x = s5.crossVectors(y, dir).normalize();
+    return basisQ(x, y, out);
+  }
+
+  /** A hero's saber in hand (or thrown, or put away) and their hands: the pose `sab`. */
+  private poseSaber(sab: SaberPose, look: number, aimQ: Quat, bodyQ: Quat, scale: number) {
+    const { info, mount, node } = this.held!;
+    const j = this.j;
+    const chest = j.chest;
+    const k = sab.key;
+    const pivot = chest.localToWorld(s1.copy(this.pivot));
+    const frameQ = this.saberFrame(bodyQ, look, sq1);
+    const t = this.fig.state.time;
+    // The fist on the hilt, and the blade out of it.
+    const grip = s2.fromArray(k.p).multiplyScalar(scale).applyQuaternion(frameQ).add(pivot);
+    if (sab.shake) grip.add(s3.set(Math.sin(t * 61) * sab.shake, Math.sin(t * 73 + 1) * sab.shake, Math.sin(t * 57 + 2) * sab.shake));
+    const dir = s3.set(0, 0, 1).applyQuaternion(rot(sq2, k.tip, k.turn, 0)).applyQuaternion(frameQ).normalize();
+    const shoulderR = j.upperArmR.getWorldPosition(new Vec3());
+    const fistR = this.fistQ(dir, grip, shoulderR, new Quat());
+    mount.position.copy(chest.worldToLocal(grip.clone()));
+    mount.quaternion.copy(chest.getWorldQuaternion(sq2).invert().multiply(fistR));
+    mount.updateMatrixWorld(true);
+    mount.visible = !sab.hide;
+    const pid = this.fig.player!;
+    const now = this.scene.now;
+    // The blade as drawn, for the effects: from the hilt's end to the tip.
+    if (!sab.hide) {
+      // Its tip: the model's `muzzle` if it marks one, else its far end.
+      const g = info.grip;
+      const end = this.heldFrom?.points.muzzle?.z ?? this.heldFrom?.bounds.max.z ?? g.z + 1.8;
+      const len = end - g.z;
+      const base = node.localToWorld(new Vec3(g.x, g.y, g.z + len * 0.3));
+      const tip = node.localToWorld(new Vec3(g.x, g.y, end));
+      this.scene.blades.set(pid, { base: { x: base.x, y: base.y, z: base.z }, tip: { x: tip.x, y: tip.y, z: tip.z }, t: now, hero: this.hero! });
+    } else this.scene.blades.delete(pid);
+    // The right hand: on the hilt, or (the saber gone) its gesture.
+    const high = Math.max(0, k.p[1] + 0.1);
+    const poleR = v1.set(-0.85, -0.55 + 1.3 * high, -0.3).applyQuaternion(bodyQ);
+    if (sab.hide && sab.right) this.gesture('R', sab.right, null, aimQ, bodyQ, scale);
+    else this.limb('R', grip.clone(), fistR, poleR, false);
+    // The left: on the hilt too (below the right), free (at rest, or its gesture), or between.
+    const two = sab.hide ? 0 : k.two;
+    let onHilt: Vec3 | null = null;
+    let hiltQ: Quat | null = null;
+    if (two > 0.001) {
+      const g2 = info.grip2 ?? new Vec3(info.grip.x, info.grip.y, info.grip.z + 3);
+      onHilt = node.localToWorld(new Vec3(g2.x, g2.y, g2.z));
+      hiltQ = this.fistQ(dir, onHilt, j.upperArmL.getWorldPosition(new Vec3()), new Quat());
+    }
+    if (two >= 0.999 && onHilt && hiltQ) this.limb('L', onHilt, hiltQ, v1.set(0.45, -0.9, 0.05).applyQuaternion(bodyQ), false);
+    else this.gesture('L', sab.left ?? { at: [0.24, -0.5, 0.06], w: 0, open: false }, onHilt && hiltQ ? { at: onHilt, q: hiltQ, w: two } : null, aimQ, bodyQ, scale);
+    // Where its hands are, for the effects (lightning from them, a push's wave).
+    j.handL.updateWorldMatrix(true, false);
+    j.handR.updateWorldMatrix(true, false);
+    const l = j.handL.getWorldPosition(new Vec3());
+    const r = j.handR.getWorldPosition(new Vec3());
+    this.scene.hands.set(pid, { l: { x: l.x, y: l.y, z: l.z }, r: { x: r.x, y: r.y, z: r.z }, t: now });
+  }
+
+  /**
+   * A free hand: from where it rests (the chest's frame: `g.at` when `g.w` is 0) to its gesture
+   * (the look's frame, `g.w` of the way), or on toward the hilt (`hilt`, `hilt.w` of the way).
+   */
+  private gesture(side: 'L' | 'R', g: Gesture, hilt: { at: Vec3; q: Quat; w: number } | null, aimQ: Quat, bodyQ: Quat, scale: number) {
+    const j = this.j;
+    const chest = j.chest;
+    const sign = side === 'L' ? 1 : -1;
+    // At rest (no gesture: `g.at` is where it rests) it hangs by the side, in the chest's frame.
+    const rest = g.w === 0 ? g.at : [0.24 * sign, -0.5, 0.06];
+    const at = chest.localToWorld(new Vec3().copy(this.pivot).add(new Vec3(rest[0], rest[1], rest[2])));
+    if (g.w > 0) at.lerp(new Vec3().fromArray(g.at).multiplyScalar(scale).applyQuaternion(aimQ).add(chest.localToWorld(new Vec3().copy(this.pivot))), g.w);
+    const shoulder = j[`upperArm${side}`].getWorldPosition(new Vec3());
+    // Open hands point their fingers up (palm out); fists forward.
+    const aimFwd = new Vec3(0, 0, 1).applyQuaternion(aimQ);
+    const pointing = g.open ? new Vec3(0, 1, 0).lerp(aimFwd, 0.2).normalize() : aimFwd.clone().lerp(UP, 0.5).normalize();
+    const restDir = new Vec3(0, 0, 1).applyQuaternion(bodyQ);
+    const q = this.fistQ(restDir.lerp(pointing, g.w).normalize(), at, shoulder, new Quat());
+    if (hilt && hilt.w > 0) {
+      at.lerp(hilt.at, hilt.w);
+      q.slerp(hilt.q, hilt.w);
+    }
+    const pole = v1.set(0.5 * sign, -0.85, -0.1 + 0.2 * g.w).applyQuaternion(bodyQ);
+    this.limb(side, at, q, pole, false);
+  }
+
+  /** Leaning with what a power does to them: back choked, forward stunned. */
+  private victimLean(v: Victim): number {
+    const t = this.scene.now - v.at;
+    if (v.kind === 'choke') return -0.2;
+    if (v.kind === 'pull') return t < 0.4 ? -0.25 : 0.35;
+    return -0.3 * Math.max(0, 1 - t / 0.8);
+  }
+
+  /**
+   * Someone a power has hold of: choked (hands at the throat, feet kicking, what they hold gone
+   * from their hands), dragged in (reaching), stunned (arms hanging), flung back (an arm thrown up).
+   */
+  private victimPose(v: Victim, s: Readonly<FigureState>, bodyQ: Quat, scale: number) {
+    const j = this.j;
+    const t = this.scene.now - v.at;
+    const body = this.body;
+    const hand = (side: 'L' | 'R', local: Vec3, fwd: Vec3, pole: Vec3) => {
+      const at = body.localToWorld(local);
+      const shoulder = j[`upperArm${side}`].getWorldPosition(new Vec3());
+      this.limb(side, at, this.fistQ(fwd.applyQuaternion(bodyQ).normalize(), at, shoulder, new Quat()), pole.applyQuaternion(bodyQ), false);
+    };
+    const neckY = this.rig.straight.neck.y;
+    if (v.kind === 'choke' || v.kind === 'pull') {
+      if (this.held) this.held.mount.visible = false;
+      if (this.hero) this.scene.blades.delete(this.fig.player!);
+    }
+    if (v.kind === 'choke') {
+      const w = Math.sin(s.time * 11) * 0.02;
+      hand('L', new Vec3(0.07, neckY + 0.02 + w, 0.1), new Vec3(-0.6, 0.6, 0.2), new Vec3(0.8, -0.3, 0));
+      hand('R', new Vec3(-0.07, neckY + 0.02 - w, 0.1), new Vec3(0.6, 0.6, 0.2), new Vec3(-0.8, -0.3, 0));
+      // Feet dangling, kicking.
+      for (const side of ['L', 'R'] as const) {
+        const sign = side === 'L' ? 1 : -1;
+        const kick = Math.sin(s.time * 9 + (side === 'L' ? 0 : 2.1));
+        const foot = body.localToWorld(new Vec3(sign * 0.09, this.ankle - 0.02 + Math.max(0, kick) * 0.12, 0.04 + kick * 0.12));
+        this.limb(side, foot, sq1.copy(bodyQ).multiply(rot(sq2, 0.6 + kick * 0.3, 0, 0)), v1.set(sign * 0.12, 0, 1).applyQuaternion(bodyQ), true);
+      }
+    } else if (v.kind === 'pull') {
+      if (t < 0.45) {
+        hand('L', new Vec3(0.22, 1.45, 0.42), new Vec3(0, 0.3, 1), new Vec3(0.6, -0.6, 0));
+        hand('R', new Vec3(-0.22, 1.4, 0.44), new Vec3(0, 0.3, 1), new Vec3(-0.6, -0.6, 0));
+      } else {
+        const sway = Math.sin(s.time * 5) * 0.04;
+        hand('L', new Vec3(0.2, 0.95 + sway, 0.22), new Vec3(0, -0.6, 1), new Vec3(0.7, 0.2, -0.3));
+        hand('R', new Vec3(-0.2, 0.95 - sway, 0.22), new Vec3(0, -0.6, 1), new Vec3(-0.7, 0.2, -0.3));
+      }
+    } else {
+      // Flung back: the free arm thrown up and out.
+      const w = Math.max(0, 1 - t / 0.8);
+      if (w > 0.05) hand('L', new Vec3(0.32 + 0.1 * w, 1.35 + 0.5 * w, 0.05 - 0.2 * w), new Vec3(0, 1, 0.3), new Vec3(0.8, 0.2, -0.4));
+    }
+    void scale;
   }
 
   /** Something held in the right fist: the holder on its grip. */

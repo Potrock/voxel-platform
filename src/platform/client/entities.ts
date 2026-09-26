@@ -122,6 +122,14 @@ export class EntityView {
     for (const f of entities) {
       seen.add(f.id);
       let v = this.shown.get(f.id);
+      // Its type changed (a player given another model: `player.setModel`): drawn afresh as that.
+      if (v && v.figure.type !== f.type) {
+        this.hold(v, null);
+        v.model.root.removeFromParent();
+        v.model.dispose();
+        this.shown.delete(f.id);
+        v = undefined;
+      }
       if (!v) {
         const def = this.content.entities.get(f.type);
         if (!def) continue;
