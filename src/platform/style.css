@@ -72,10 +72,11 @@ body {
 /*
  * A replay playing on this screen (game.replay.show): the live HUD steps aside. Client code's own
  * layers stay (it says what's playing, and its kits hide what's the live player's own), and so do
- * the world's markers and the screen's flashes.
+ * the world's markers, the screen's flashes, and the scoreboard (Tab held: a kill cam is when
+ * people look at the scores).
  */
 #ui.replaying .hud > :not(.hud-layer),
-#ui.replaying .gamehud > :not(.hud-layer):not(.markers):not(.screen-flash) {
+#ui.replaying .gamehud > :not(.hud-layer):not(.markers):not(.screen-flash):not(.scoreboard) {
   visibility: hidden;
 }
 

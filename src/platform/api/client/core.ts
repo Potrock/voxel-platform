@@ -98,6 +98,8 @@ export interface FigureSignals {
 export interface KitControls {
   /** This screen has the controls (in play, alive, not driving). */
   readonly active: boolean;
+  /** They're dead, as the newest frame has it (`client.me` catches up after the controls): what's cooked in hand falls. */
+  readonly dead: boolean;
   /** Where the view looks now (radians), this frame's look taken: what a shot fired now goes along. */
   readonly yaw: number;
   readonly pitch: number;

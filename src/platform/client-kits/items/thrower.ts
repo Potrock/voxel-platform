@@ -131,6 +131,18 @@ export class ThrowController {
     return this.cooking?.key ? this.cooking.item : this.tossed;
   }
 
+  /**
+   * They died with one cooked: it drops where they were (from `eye`, straight down), its fuse still
+   * burning, a throw like any other (it goes off where they fell). Null with nothing cooked.
+   */
+  drop(eye: Vec3): ThrowMade | null {
+    const k = this.cooking;
+    if (!k) return null;
+    this.cooking = null;
+    this.tossed = null;
+    return { serial: ++this.serial, item: k.item, from: eye, v: { x: 0, y: -1, z: 0 }, cooked: k.held };
+  }
+
   reset() {
     this.cooking = null;
     this.tossed = null;
