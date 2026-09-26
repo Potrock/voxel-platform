@@ -279,8 +279,9 @@ function spawnMenu(game: GameContext, f: Fighter) {
   };
   const sections = (): MenuOptions['sections'] => {
     const all = allSections();
-    return heroMode() ? all.filter((s) => s.title === 'Heroes') : all;
+    return heroMode() ? all.filter((s) => s.title === 'Heroes' || s.title === 'Go') : all;
   };
+  const wait = () => Math.max(0, Math.ceil(RESPAWN - (game.clock.now - f.diedAt)));
   const allSections = (): MenuOptions['sections'] => [
     {
       title: 'Class',
@@ -338,6 +339,21 @@ function spawnMenu(game: GameContext, f: Fighter) {
           active: f.spawnAt === post.spec.id,
           onSelect: () => ((f.spawnAt = post.spec.id), refresh()),
         })),
+      ],
+    },
+    {
+      title: 'Go',
+      entries: [
+        {
+          icon: { block: 'glowstone' },
+          label: p.alive ? 'Back to the fight' : wait() > 0 ? `Deploy in ${wait()}` : 'Deploy',
+          note: p.alive ? 'Your picks stand for your next life' : 'The moment you can',
+          onSelect: () => {
+            f.menu?.close();
+            // Dead and the wait's over: in now (otherwise the respawn takes them when it's up).
+            if (!p.alive && wait() === 0 && match.phase === 'playing') spawn(game, f);
+          },
+        },
       ],
     },
   ];
