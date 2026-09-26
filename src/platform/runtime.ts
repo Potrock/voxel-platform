@@ -4,11 +4,14 @@ import { WorkerPool } from './workers/pool';
 import { worldGenConfig } from './workers/config';
 import { SocketLink } from './client/link';
 import { FrameBuffer } from './client/interp';
-import { ReplayPlayback } from './client/replay';
+import type { ReplayPlayback } from './client/replay';
+import { ReplayView } from './client/replays';
+import { Avatars, standIn } from './client/avatars';
+import { Debris } from './client/debris';
+import { DevTools } from './client/devtools';
 import { Predictor } from './client/predict';
 import { flightWorld } from './sim/flight';
-import { Rubble, damageTaken } from './render/rubble';
-import { freshMemory, resolveMovement, type MoveTune } from './sim/movement';
+import { resolveMovement, type MoveTune } from './sim/movement';
 import { playerBoxes, rayBox, resolveHitscan, type HitscanRules } from './sim/hitboxes';
 import { bulletPath } from './sim/hitscan';
 import type { Penetration } from './api/items';
@@ -16,7 +19,6 @@ import { ClientMovers, propPose } from './client/movers';
 import { heading, toWorld } from './sim/movers';
 import { VehicleView } from './client/vehicle';
 import { worldQuery } from './sim/worldquery';
-import { Models, Skins } from './api/models';
 import { LAYER_CHUNKS, Renderer, type FrameHooks } from './render/pipeline';
 import { Environment } from './render/environment';
 import { BiomeMap, builtinTextures, createBlockTextures, createNoiseTexture, type TextureSet } from './render/textures';
@@ -26,7 +28,7 @@ import { BlockHighlight } from './render/highlight';
 import { EntityGraphics } from './render/entities';
 import { ChunkManager } from './world/chunks';
 import { firstGameBlock, gameBlocks, useGameBlocks, type GameBlocks } from './world/blocks';
-import { blockIdOf, DEFAULT_TINT, destructibleIds, loadRegistry, variant, type Registry } from './world/registry';
+import { blockIdOf, destructibleIds, loadRegistry, variant, type Registry } from './world/registry';
 import { Input } from './player/input';
 import { gameKeys } from './player/keys';
 import { padBindings, padHints, rumble } from './player/gamepad';
@@ -36,18 +38,17 @@ import { Sfx } from './audio/sfx';
 import { Hud } from './ui/hud';
 import { applyTheme, GameHud } from './ui/hudkit';
 import { plainRecord, type PlainData } from './ui/markup';
-import { DebugOverlay } from './ui/debug';
 import { CommandBar } from './ui/commandbar';
 import { Content } from './content';
 import { PLACEHOLDER_ICON, resolveIcon } from './looks';
-import { Presenter, soundOf } from './client/present';
+import { Presenter } from './client/present';
 import { PlayerCamera } from './client/camera';
-import { EntityView, type FigureFrame } from './client/entities';
+import { EntityView } from './client/entities';
 import { PickupView } from './client/pickups';
 import { PropView } from './client/props';
 import type { SimFrame } from './sim/sim';
 import type { PlayerFrame } from './sim/player';
-import { MESSAGE_MAX, newRoomCode, ROOM_CODE, type DevReply, type HostBatch, type PresentCall, type ReplayEvent, type ReplayWire, type TimedBatch } from './net/protocol';
+import { MESSAGE_MAX, newRoomCode, ROOM_CODE, type DevReply, type HostBatch, type TimedBatch } from './net/protocol';
 import { sanitizeGameMessage } from './net/validate';
 import { clipFrame, type ClipFrame } from './sim/entities';
 import { Inventory as BlockPicker, PauseMenu, TitleScreen } from './ui/screens';
@@ -55,7 +56,7 @@ import { blockIcon } from './ui/icons';
 import { GRAPHICS, loadSettings, saveSettings, toRenderSettings, type Settings } from './settings';
 import { AutoQuality, savedQuality, saveQuality, type Look } from './quality';
 import type { BlockRef, IconRef, ItemDefinition, ItemStack, PadAction, PadButton, SharedDefinition, Vec3 } from './api/types';
-import type { Client, ClientDefinition, ClientEvent, ClientGame, ClientReplay, ClientTrace, GameEntry, Me } from './api/client';
+import type { Client, ClientDefinition, ClientEvent, ClientGame, ClientTrace, GameEntry, Me } from './api/client';
 import { ClientRuntime } from './client/api/client';
 import { FirstPersonLayer } from './client/api/view';
 import { ClientHudService } from './client/api/hud';
@@ -94,6 +95,11 @@ const deviceDpr = () => Math.min(window.devicePixelRatio || 1, 2);
  * player predicted ahead); the host's content, presentation calls and block edits arrive in the
  * same batches. It runs one game at a time from the catalog (`GameEntry`), with that game's
  * shared definition, loaded when it's picked.
+ *
+ * It's the frame loop and the glue: what it draws and plays is in parts of their own under
+ * `client/`, each told only what it needs of the runtime (`ReplayView` for replays, `Avatars` for
+ * other players' figures and name tags, `Debris` for rubble, `DevTools` for the F3 overlay and
+ * `__game.dev`, besides the views of entities, pickups, props and vehicles).
  */
 export class Runtime {
   mode: Mode = 'title';
@@ -131,7 +137,8 @@ export class Runtime {
   private particles!: Particles;
   private hud!: Hud;
   private gameHud!: GameHud;
-  private debug!: DebugOverlay;
+  /** The F3 overlay, `__game.debugInfo()` and `__game.dev`. */
+  private devTools!: DevTools;
   private title: TitleScreen;
   private pause!: PauseMenu;
   private picker: BlockPicker | null = null;
@@ -168,10 +175,8 @@ export class Runtime {
   private inputSeq = 0;
   /** When each recent input was applied here (local seconds): our own shots fly from then. */
   private inputTimes = new Map<number, number>();
-  /** Other players drawn as figures: their stable entity ids, hurt flashes, and name tags shown. */
-  private avatarIds = new Map<string, number>();
-  private avatarHurt = new Map<string, { health: number; flash: number }>();
-  private tags = new Set<string>();
+  /** Other players drawn as figures, with their name tags. */
+  private avatars!: Avatars;
   private nextRequest = 1;
   private commandBar!: CommandBar;
   private last = performance.now();
@@ -199,11 +204,8 @@ export class Runtime {
   private acts: Record<string, unknown[][]> = {};
   /** `client.hud`: client code's layers and stylesheets. */
   private clientHud!: ClientHudService;
-  /** Chips and chunks knocked out of blocks, settling as little cubes. */
-  private rubble!: Rubble;
-  /** Damage this batch brought (rubble is thrown once the batch's explosions are known), and those explosions. */
-  private damageSeen: Uint8Array[] = [];
-  private blasts: { at: Vec3; size: number; age: number }[] = [];
+  /** Rubble and dust knocked out of blocks. */
+  private debris!: Debris;
   /** The host time of the frame last drawn (shots hit where others were then). */
   private shownT = 0;
   /** A clip our own movement abilities started (`trigger(name, { clip })`), shown on our figure until the host's word arrives. */
@@ -212,27 +214,14 @@ export class Runtime {
   private tune: MoveTune;
   /** Undo the game's HUD theme (switching games). */
   private unTheme: () => void = () => {};
-  /** Average colours of blocks' textures (bullet chips), by block id. */
-  private blockColors = new Map<number, [number, number, number]>();
   /** A controller in the menus: the highlighted control. */
   private padNav = new PadNav(document.body);
   /** How long the right stick has been pushed all the way sideways (turning round speeds up). */
   private fullTilt = 0;
   /** Our health last frame (the controller rumbles when it drops). */
   private lastHealth = -1;
-  /**
-   * A replay playing on this screen (`game.replay.show`): its frames are drawn in place of the live
-   * game's, through its player's eyes (their own camera, `replayView`) or from its camera.
-   */
-  private replay: ReplayPlayback | null = null;
-  private replayView!: PlayerCamera;
-  /**
-   * When the replay last moved on (ms, the page's clock): it plays on the wall clock, as the server
-   * times it, so a slow frame (whose `dt` is capped) doesn't leave it behind to be cut short.
-   */
-  private replayWall = 0;
-  /** `client.replay.skip()` was called: the replay ends as the next frame starts (every kit sees `replay.end` in its `frame`). */
-  private replaySkip = false;
+  /** A replay playing on this screen (`game.replay.show`): its frames are drawn in place of the live game's. */
+  private replays!: ReplayView;
 
   private constructor(
     private canvas: HTMLCanvasElement,
@@ -407,8 +396,7 @@ export class Runtime {
       return id !== 255 && (this.registry.blocks[id]?.solid ?? false);
     });
     this.renderer.opaqueScene.add(this.particles.points);
-    this.rubble = new Rubble((x, y, z) => world.point_solid(x, y, z), this.renderer.uniforms.uSunDir);
-    this.renderer.opaqueScene.add(this.rubble.mesh);
+    this.debris = new Debris({ world, registry: this.registry, textures: this.textures, particles: this.particles, scene: this.renderer.opaqueScene, sunDir: this.renderer.uniforms.uSunDir });
 
     const icons = new Map<number, string>();
     for (const b of this.registry.blocks) {
@@ -435,7 +423,7 @@ export class Runtime {
         const p = this.frameData?.players.find((x) => x.id === a.$player);
         if (!p) return false;
         if (p.vehicle?.prop != null && !p.vehicle.remote) return this.propView.locate(p.vehicle.prop, offset, out);
-        const avatar = this.avatarIds.get(p.id);
+        const avatar = this.avatars.idOf(p.id);
         if (p.id !== this.playerId && avatar !== undefined && this.entityView.locate(avatar, offset, out)) return true;
         out.set(p.x + (offset?.x ?? 0), p.y + (offset?.y ?? 0), p.z + (offset?.z ?? 0));
         return true;
@@ -460,9 +448,23 @@ export class Runtime {
     this.gameHud.setHealthStyle(def.hud?.health ?? 'hearts');
     this.unTheme = applyTheme(this.ui, def.hud?.theme);
     if (!this.walker) this.hud.setHotbarVisible(false);
-    this.debug = new DebugOverlay(this.ui);
+    this.devTools = new DevTools(this.ui, {
+      def,
+      renderer: this.renderer,
+      chunks: this.chunks,
+      env: this.env,
+      pool: this.pool,
+      quality: this.quality,
+      mode: () => this.mode,
+      ready: () => this.worldReady,
+      player: () => this.playerId,
+      frame: () => this.frameData,
+      mine: (f) => this.mine(f),
+      look: () => this.view,
+      request: (cmd) => this.request<DevReply>(cmd),
+    });
     this.fx = new Effects(this.particles, this.gameHud, this.renderer.fxScene, this.sfx, () => this.camera.position);
-    this.fx.onBlast = (at, size) => this.blasts.push({ at: { x: at.x, y: at.y, z: at.z }, size, age: 0 });
+    this.fx.onBlast = (at, size) => this.debris.blast(at, size);
     // Solid blocks as a flight meets them (`client.world.raycast`: through plants, where a carved block really is).
     const flying = flightWorld(world, this.registry);
 
@@ -489,7 +491,34 @@ export class Runtime {
 
     this.view = new PlayerCamera(this.camera);
     this.view.clearance = (from, dir, max) => this.clearance(from, dir, max);
-    this.replayView = new PlayerCamera(this.camera);
+    this.avatars = new Avatars({
+      def,
+      content: this.content,
+      view: this.view,
+      walker: this.walker,
+      camera: this.camera,
+      world,
+      hud: this.gameHud,
+      figure: (item, state) => this.client.kindFigure(item, state),
+      ownClip: () => this.ownClip,
+    });
+    this.replays = new ReplayView({
+      camera: this.camera,
+      view: this.view,
+      ui: this.ui,
+      fx: this.fx,
+      sfx: this.sfx,
+      item: (id) => this.content.items.get(id),
+      settings: () => this.settings,
+      walkSpeed: this.tune.params[0],
+      player: () => this.playerId,
+      send: (cmd) => this.link.send(cmd),
+      emit: (e) => this.emit(e),
+      message: (name, data) => this.message(name, data),
+      viewCall: (method, args) => this.viewCall(method, args),
+      damage: (data) => this.debris.fromDamage(data),
+      fillMe: (base, p) => this.fillMe(base, p),
+    });
     this.held = new FirstPersonLayer(this.textures.albedo, this.textures.material, this.graphics, this.camera, this.content.animations, (e) => this.client?.emit(e));
     this.renderer.overlay = { scene: this.held.view.scene, camera: this.held.view.camera };
     this.renderer.opaqueScene.add(this.highlight.object);
@@ -618,7 +647,7 @@ export class Runtime {
         hud: this.clientHud,
         scene: new SceneService(this.renderer.entityScene, this.graphics, this.content.items),
         // Replays.
-        replay: this.replayService(),
+        replay: this.replays.service(),
         // Shared services.
         camera: {
           get zoom() {
@@ -666,7 +695,7 @@ export class Runtime {
           },
           lineOfSight: (a, b) => this.chunks.world.line_clear(a.x, a.y, a.z, b.x, b.y, b.z),
           trace: (from, dir, range, opts = {}) => this.trace(from, dir, range, opts.penetration ?? null),
-          blockColor: (id) => this.blockColor(id),
+          blockColor: (id) => this.debris.blockColor(id),
           carvable: (block, at, normal) => this.carvable(block, at, normal),
         },
       },
@@ -708,14 +737,10 @@ export class Runtime {
     if (!name.startsWith('$')) return this.client ? this.client.message(name, data) : this.emit({ t: 'message', name, data });
     if (name === '$debris') {
       const [x, y, z, id] = data as [number, number, number, number];
-      const def = this.registry.blocks[id];
-      if (!def) return;
-      const face = def.tex[0];
-      this.particles.burst(x, y, z, this.textures.albedoData.subarray(face * 1024, face * 1024 + 1024), def.tint ? DEFAULT_TINT : null);
-      this.rubbleFromBlock(x, y, z, id);
+      this.debris.broken(x, y, z, id);
     } else if (name === '$reset') {
       // A restart: everything the game put on screen goes (a replay too).
-      this.endReplay(false);
+      this.replays.end(false);
       this.entityView.clear();
       this.pickupView.clear();
       this.propView.clear();
@@ -723,7 +748,7 @@ export class Runtime {
       this.gameHud.clear();
       this.highlight.set(null);
       this.fx.clear();
-      this.rubble.clear();
+      this.debris.clear();
       this.emit({ t: 'reset' });
     }
   }
@@ -771,186 +796,6 @@ export class Runtime {
     if (this.playerId) this.link.send({ t: 'message', msg: m });
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Replays (`game.replay.show`)
-  // ---------------------------------------------------------------------------------------------
-
-  /** `client.replay`: the replay playing here, as client code sees it. */
-  private replayService(): ClientReplay {
-    const rt = this;
-    return {
-      get playing() {
-        return rt.replay !== null;
-      },
-      get id() {
-        return rt.replay?.wire.id ?? 0;
-      },
-      get follow() {
-        return rt.replay?.wire.follow ?? null;
-      },
-      get label() {
-        return rt.replay?.wire.label ?? '';
-      },
-      get data() {
-        return rt.replay?.wire.data ?? null;
-      },
-      get time() {
-        return rt.replay?.time ?? 0;
-      },
-      get duration() {
-        return rt.replay?.duration ?? 0;
-      },
-      get speed() {
-        return rt.replay?.wire.speed ?? 1;
-      },
-      get skippable() {
-        return rt.replay?.wire.skippable ?? false;
-      },
-      skip: () => {
-        if (rt.replay?.wire.skippable) rt.replaySkip = true;
-      },
-    };
-  }
-
-  /** A replay for this screen: it plays from the next frame (one playing already gives way). */
-  private startReplay(wire: ReplayWire) {
-    if (wire.steps.length < 2) return;
-    if (this.replay) this.endReplay(false);
-    this.replay = new ReplayPlayback(wire);
-    this.replayWall = performance.now();
-    this.replaySkip = false;
-    this.replayView.settleFrom(this.view);
-    this.ui.classList.add('replaying');
-    this.emit({ t: 'replay.start', label: wire.label, follow: wire.follow, data: wire.data });
-  }
-
-  /** The replay's over here: played out, ended by the server, or skipped (the server hears). */
-  private endReplay(skipped: boolean) {
-    const r = this.replay;
-    if (!r) return;
-    this.replay = null;
-    this.replaySkip = false;
-    if (skipped && this.playerId) this.link.send({ t: 'message', msg: { t: 'replaySkip', player: this.playerId, id: r.wire.id } });
-    this.view.aimZoom = 1;
-    this.ui.classList.remove('replaying');
-    this.emit({ t: 'replay.end', label: r.wire.label, skipped });
-  }
-
-  /**
-   * While a replay plays, what the live game shows in the world isn't: its effects, sounds out in
-   * the world, shots, throws and fires, and calls to our own view (it's the replay's eyes now).
-   * The HUD's calls, sounds of no place and the game's own messages still come.
-   */
-  private hiddenByReplay(c: PresentCall): boolean {
-    switch (c.target) {
-      case 'fx':
-        return true;
-      case 'audio':
-        return c.method === 'play' && !!(c.args[1] as { at?: unknown } | undefined)?.at;
-      case 'message':
-        return c.method.startsWith('$') && c.method !== '$reset';
-      case 'view':
-        return c.method !== 'visible' && c.method !== 'setSkin';
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * The replay on by this frame's time: what was shown in the steps it passed (the followed
-   * player's own shots kick their hands; everyone else's fly from their figures), and the frame to
-   * draw with whoever's eyes it follows in it. Null: it just ended (the live game is drawn).
-   */
-  private replayStep(): { frame: SimFrame; eyes: PlayerFrame | null; follow: string | null } | null {
-    const r = this.replay!;
-    if (r.done || this.replaySkip) {
-      this.endReplay(this.replaySkip);
-      return null;
-    }
-    const wall = performance.now();
-    const due = r.advance(Math.min(0.5, Math.max(0, (wall - this.replayWall) / 1000)));
-    this.replayWall = wall;
-    const frame = r.sample();
-    const follow = r.wire.follow;
-    for (const e of due) this.replayEvent(e, follow);
-    const eyes = follow ? (frame.players.find((p) => p.id === follow) ?? null) : null;
-    return { frame, eyes, follow };
-  }
-
-  /**
-   * Something shown in a replay's step, as the followed player's screen showed it: calls to
-   * everyone (but those their own screen made itself: their shots, their throws), and theirs.
-   */
-  private replayEvent(e: ReplayEvent, follow: string | null) {
-    if (e.t === 'damage') return this.rubbleFromDamage(e.data);
-    const c = e.call;
-    if (c.to !== null && c.to !== follow) return;
-    // (Messages go to the game's client code as they came: its kits tell the followed player's own shots from others'.)
-    if (c.target === 'message') return this.message(c.method, c.args[0]);
-    // Their own screen made these itself (the sound of their shot): shown from their `$shot`.
-    if (c.to === null && c.skip !== undefined && c.skip === follow) return;
-    switch (c.target) {
-      case 'fx':
-        return (this.fx as unknown as Record<string, (...a: unknown[]) => void>)[c.method]?.(...c.args);
-      case 'audio': {
-        const sound = c.method === 'play' ? soundOf(c.args[0] as string, c.args[1] as Parameters<typeof soundOf>[1], (id) => this.content.items.get(id)) : null;
-        if (sound) this.sfx.play(sound[0], sound[1]);
-        return;
-      }
-      case 'view':
-        return this.viewCall(c.method, c.args);
-    }
-  }
-
-  /** Where a replay's camera is: the followed player's eyes (first person), else its own camera. */
-  private replayCamera(dt: number, eyes: PlayerFrame | null) {
-    const r = this.replay!;
-    if (eyes) {
-      const v = this.replayView;
-      v.yaw = eyes.view.yaw;
-      v.pitch = eyes.view.pitch;
-      // (Aiming zooms as client code has it: `client.camera.zoom`.)
-      v.aimZoom = this.view.aimZoom;
-      v.follow(dt, eyes);
-      return;
-    }
-    const cam = r.wire.camera;
-    if (!cam) return;
-    this.camera.position.set(cam.at[0], cam.at[1], cam.at[2]);
-    this.camera.up.set(0, 1, 0);
-    this.camera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
-    const fov = cam.fov ?? this.settings.fov;
-    if (this.camera.fov !== fov) {
-      this.camera.fov = fov;
-      this.camera.updateProjectionMatrix();
-    }
-    this.camera.updateMatrixWorld();
-  }
-
-  /** `client.me` in a replay: the player it follows, as it shows them (their look, what they hold, their items as they were). */
-  private replayMe(p: PlayerFrame): Me {
-    return this.fillMe({
-      id: p.id,
-      position: { x: p.x, y: p.y, z: p.z },
-      velocity: { x: p.vx, y: p.vy, z: p.vz },
-      look: { yaw: p.view.yaw, pitch: p.view.pitch },
-      onGround: p.onGround,
-      flying: p.flying,
-      crouching: p.sneaking,
-      sprinting: p.sprinting,
-      sliding: p.sliding,
-      dead: p.dead,
-      inVehicle: !!p.vehicle,
-      health: p.health,
-      maxHealth: p.maxHealth,
-      bob: { phase: p.bob * Math.PI * 0.9, amount: this.settings.viewBobbing && p.onGround && !p.flying ? Math.min(1, Math.hypot(p.vx, p.vz) / 4.3) : 0 },
-      thirdPerson: false,
-      walkSpeed: this.tune.params[0],
-      hotbar: p.hotbar,
-      abilities: {},
-    }, p);
-  }
-
   /** Show a block in the hand (a bed whole: its head too), from the block picker or an item that looks like one. */
   private holdBlock(id: number, item: string | null = null, itemDef?: ItemDefinition) {
     const def = this.registry.blocks[id];
@@ -985,7 +830,7 @@ export class Runtime {
           break;
         case 'call':
           // (A replay playing: what the live game shows in the world waits for nobody.)
-          if (this.replay && this.hiddenByReplay(e.call)) break;
+          if (this.replays.hides(e.call)) break;
           this.presenter.apply(e.call);
           break;
         case 'edits':
@@ -993,13 +838,13 @@ export class Runtime {
           break;
         case 'damage':
           this.chunks.applyDamage(e.data);
-          if (this.worldReady && !this.replay) this.damageSeen.push(e.data);
+          if (this.worldReady && !this.replays.playing) this.debris.seen(e.data);
           break;
         case 'replay':
-          this.startReplay(e.replay);
+          this.replays.start(e.replay);
           break;
         case 'replayEnd':
-          if (this.replay?.wire.id === e.id) this.endReplay(false);
+          if (this.replays.playback?.wire.id === e.id) this.replays.end(false);
           break;
         case 'revert':
           this.chunks.revertEdits();
@@ -1029,8 +874,7 @@ export class Runtime {
     }
     // The batch's shots show together, and the rubble they knocked out flies.
     this.chunks.flushDamage();
-    for (const d of this.damageSeen) this.rubbleFromDamage(d);
-    this.damageSeen = [];
+    this.debris.flush();
     if (b.frame) {
       this.frameData = b.frame;
       // In a room of a player's own, the home page says who's in it.
@@ -1047,165 +891,19 @@ export class Runtime {
   }
 
   /**
-   * The figure type for a player: a humanoid in their skin (`player.setSkin`), else the game's
-   * player skin, else the default. Defined the first time it's needed.
-   */
-  private avatarType(p: PlayerFrame): string {
-    const d = this.def.player;
-    // A model (theirs, or the game's for everyone): one figure type per model.
-    const model = p.model ?? d?.model;
-    if (model) {
-      const type = `$player:model:${JSON.stringify(model)}`;
-      if (!this.content.entities.has(type)) this.content.defineEntity(type, { name: 'Player', model, hitbox: { width: 0.6, height: 1.8 }, health: 20, speed: 4.3 });
-      return type;
-    }
-    const skin = p.skin ?? (d?.skin ? { uv: d.skin, atlas: d.skinAtlas } : { uv: Skins.player, atlas: undefined });
-    const type = `$player:${skin.atlas ?? 'builtin'}:${skin.uv.join(',')}`;
-    if (!this.content.entities.has(type)) {
-      this.content.defineEntity(type, { name: 'Player', model: Models.humanoid({ skin: skin.uv, atlas: skin.atlas }), hitbox: { width: 0.6, height: 1.8 }, health: 20, speed: 4.3 });
-    }
-    return type;
-  }
-
-  /**
    * This client's player in a frame. Watching the game before joining, a stand-in at the spawn,
    * for the camera (circling above it on the title screen) and the terrain around it.
    */
   private mine(f: SimFrame | null): PlayerFrame | undefined {
     const me = f?.players.find((p) => p.id === this.playerId);
     if (me || !f || this.playerId) return me;
-    const sp = this.link.welcome.spawn;
-    return {
-      id: '',
-      name: '',
-      x: sp.x,
-      y: sp.y,
-      z: sp.z,
-      vx: 0,
-      vy: 0,
-      vz: 0,
-      onGround: true,
-      inWater: false,
-      eyesInWater: false,
-      inLava: false,
-      flying: false,
-      bob: 0,
-      sneaking: false,
-      sprinting: false,
-      sliding: false,
-      speed: 1,
-      bot: false,
-      view: { seq: 0, yaw: sp.yaw, pitch: 0 },
-      health: 20,
-      maxHealth: 20,
-      mortal: false,
-      dead: false,
-      deathTime: 0,
-      hotbar: null,
-      hand: { state: null },
-      camera: { p: [sp.x, sp.y + 1.62, sp.z], q: [0, 0, 0, 1], fov: this.settings.fov, follow: false },
-      vehicle: null,
-      creative: null,
-      frozen: true,
-      locked: false,
-      canFly: false,
-      swings: 0,
-      ack: -1,
-      move: freshMemory(),
-      lead: 0,
-      skin: null,
-      model: null,
-      color: null,
-      ride: null,
-      orbit: null,
-    };
+    return standIn(this.link.welcome.spawn, this.settings.fov);
   }
 
   /** The server went away: say so, and stop sending. */
   private disconnected() {
     this.input.unlock();
     this.gameHud.screen({ title: 'Disconnected', subtitle: 'The connection to the game server was lost.', tone: 'defeat', buttons: [{ label: 'Reload', primary: true, onClick: () => location.reload() }] });
-  }
-
-  /**
-   * Other players as figures (entities of the built-in `$player` type), with their names above.
-   * `self` is whose eyes we see through (a replay's player, not `live`: never drawn), or none.
-   */
-  private avatars(f: SimFrame, me: PlayerFrame, self: string | null = this.playerId, live = true): FigureFrame[] {
-    const out: FigureFrame[] = [];
-    const seen = new Set<string>();
-    for (const other of f.players) {
-      // Only people on foot get a figure: a driver is their vehicle's model, but one steering it
-      // from afar (`remote`) stands where they are and shows there (our own too, seen from the
-      // vehicle, as the host has it). Our own shows in third person, where we're shown
-      // (predicted) facing where we look.
-      const mine = other.id === self;
-      const remote = !!other.vehicle?.remote;
-      if ((mine && !(live && (this.view.thirdPerson || remote))) || !this.walker || (other.vehicle && !remote)) continue;
-      const p = mine && !remote ? { ...me, view: { ...me.view, yaw: this.view.yaw, pitch: this.view.pitch } } : other;
-      const type = this.avatarType(p);
-      let id = this.avatarIds.get(p.id);
-      if (id === undefined) this.avatarIds.set(p.id, (id = -1 - this.avatarIds.size));
-      const cp = Math.cos(p.view.pitch);
-      const eye = { x: p.x, y: p.y + 1.62, z: p.z };
-      // A red flash when their health drops.
-      const h = this.avatarHurt.get(p.id) ?? { health: p.health, flash: 0 };
-      if (p.health < h.health) h.flash = 1;
-      h.health = p.health;
-      h.flash = Math.max(0, h.flash - 0.05);
-      this.avatarHurt.set(p.id, h);
-      const held = p.hotbar?.slots[p.hotbar.selected]?.item ?? null;
-      // What their held item's kind makes their figure do (its kit's `figure`, from the item's
-      // state as the host shows it: a gun's aim and reload): the dead aim nothing.
-      const heldDef = held ? this.content.items.get(held) : undefined;
-      const mech = p.dead || !heldDef ? null : this.client.kindFigure(heldDef, p.hand.state);
-      out.push({
-        id,
-        player: p.id,
-        type,
-        x: p.x,
-        y: p.y,
-        z: p.z,
-        vx: p.vx,
-        vz: p.vz,
-        yaw: p.view.yaw,
-        look: { x: eye.x - Math.sin(p.view.yaw) * cp * 4, y: eye.y + Math.sin(p.view.pitch) * 4, z: eye.z - Math.cos(p.view.yaw) * cp * 4 },
-        attacks: p.swings,
-        raised: false,
-        casting: false,
-        glow: null,
-        hurt: h.flash,
-        dying: p.dead ? p.deathTime : -1,
-        held,
-        aim: mech?.aim ?? 0,
-        posture: p.sliding ? 2 : p.sneaking ? 1 : 0,
-        air: !p.onGround && !p.flying && !p.inWater,
-        sprint: p.sprinting,
-        reloading: mech?.reloading ?? false,
-        sights: mech?.sights ?? 0,
-        clip: (mine && this.ownClip) || p.clip || undefined,
-      });
-      if (mine) continue;
-      const tags = this.def.hud?.nameTags ?? 'always';
-      if (tags === 'never' || p.dead) continue;
-      const top = { x: p.x, y: p.y + (p.sliding ? 1.45 : p.sneaking ? 1.95 : 2.25), z: p.z };
-      // In a shooter, names show only while nothing blocks the view (no finding people through walls).
-      if (tags === 'sight') {
-        const c = this.camera.position;
-        if (!this.chunks.world.line_clear(c.x, c.y, c.z, top.x, top.y - 0.35, top.z)) continue;
-      }
-      const tag = `$name:${p.id}`;
-      seen.add(tag);
-      this.tags.add(tag);
-      const bar = this.def.hud?.healthBars && p.maxHealth > 0 ? p.health / p.maxHealth : undefined;
-      this.gameHud.marker(tag, top, { label: p.name, shape: 'dot', size: 3, color: p.color ?? '#ffffff', bar });
-    }
-    for (const tag of this.tags) {
-      if (seen.has(tag)) continue;
-      this.gameHud.marker(tag, null);
-      this.tags.delete(tag);
-    }
-    return out;
   }
 
   /** Ask the host something; the answer comes in a later batch. */
@@ -1362,7 +1060,7 @@ export class Runtime {
       this.commandBar.open('/');
       return;
     }
-    if (code === 'F3') this.debug.toggle();
+    if (code === 'F3') this.devTools.toggle();
     if (code === 'F1') {
       this.hudVisible = !this.hudVisible;
       if (this.mode !== 'title') {
@@ -1568,8 +1266,7 @@ export class Runtime {
     this.view.baseFov = s.fov;
     this.view.viewBobbing = s.viewBobbing;
     this.input.setBindings(s.keys);
-    this.replayView.baseFov = s.fov;
-    this.replayView.viewBobbing = s.viewBobbing;
+    this.replays.applySettings(s);
     this.link.send({ t: 'env', dayLength: s.dayMinutes * 60 });
     this.link.send({ t: 'radius', columns: this.hostRadius(s) });
     this.camera.far = Math.max(256, (rd + 1.5) * 16 * 1.08);
@@ -1686,13 +1383,13 @@ export class Runtime {
     this.env.update(dt);
     // A replay playing (`game.replay.show`): its frame is drawn in place of the live one, through
     // its player's eyes (`eyes`; null: its own camera). The live game goes on under it.
-    const rp = this.replay ? this.replayStep() : null;
+    const rp = this.replays.step();
     const shown = rp?.frame ?? f;
     const eyes = rp ? rp.eyes : me;
     // Driving: the vehicle's camera, worked out here every frame from its (predicted) state.
     const ride = !rp && me.camera.follow && this.vehicles.active ? this.vehicles.camera(dt) : null;
     if (rp) {
-      this.replayCamera(dt, rp.eyes);
+      this.replays.place(dt, rp.eyes);
     } else if (ride) {
       this.camera.position.copy(ride.position);
       this.camera.up.copy(ride.up);
@@ -1726,7 +1423,7 @@ export class Runtime {
       if (this.mode !== 'title') this.titleSpin = 0;
     }
     // The game runs on while this client is paused: its figures keep walking.
-    const avatars = () => (rp ? this.avatars(shown, eyes ?? me, rp.follow, false) : this.avatars(f, me));
+    const avatars = () => (rp ? this.avatars.frames(shown, eyes ?? me, rp.follow, false) : this.avatars.frames(f, me, this.playerId));
     this.entityView.sync(shown.players.length > 1 || (!rp && this.view.thirdPerson) ? [...shown.entities, ...avatars()] : shown.entities, shown.projectiles, dt, started, shown.t);
     // A controller rumbles when we're hurt.
     if (me.health < this.lastHealth && this.lastHealth > 0 && this.input.device === 'pad' && this.settings.vibration) rumble(0.55, 0.3, 170);
@@ -1767,16 +1464,14 @@ export class Runtime {
     // The game's client code: its kits (the first-person view places the hand, the figures are
     // posed, ...), then its own frame. In a replay, `client.me` is the player it follows.
     if (!this.clientStarted) this.startClient(me);
-    const mine = rp && eyes ? this.replayMe(eyes) : this.meOf(me, dt);
+    const mine = rp && eyes ? this.replays.me(eyes) : this.meOf(me, dt);
     this.client.frame(dt, mine);
     // The figures as client code posed them (the figures kit), animated.
     this.entityView.finish();
     // The world's effects move on by the frame's time (what the client code made just now, too).
     this.particles.setLight(this.light);
     this.particles.update(dt);
-    this.rubble.setLight(this.light);
-    this.rubble.update(dt);
-    for (let i = this.blasts.length - 1; i >= 0; i--) if ((this.blasts[i].age += dt) > 0.3) this.blasts.splice(i, 1);
+    this.debris.update(dt, this.light);
     this.fx.update(dt);
     // The client code's late work, from where the eye is now (what's made here is drawn where it
     // starts: a shot's tracers leave the muzzle as it's drawn).
@@ -1794,7 +1489,7 @@ export class Runtime {
       this.camera.rotateZ(k * 0.45);
     }
     this.camera.updateMatrixWorld();
-    const heading = rp ? (eyes ? this.replayView.yaw : Math.atan2(-this.dir.x, -this.dir.z)) : this.walker ? this.view.yaw : Math.atan2(-this.dir.x, -this.dir.z);
+    const heading = rp ? (eyes ? this.replays.eyes.yaw : Math.atan2(-this.dir.x, -this.dir.z)) : this.walker ? this.view.yaw : Math.atan2(-this.dir.x, -this.dir.z);
     this.sfx.setListener(this.camera.position, heading);
     this.present(dt, t0);
   }
@@ -1996,82 +1691,6 @@ export class Runtime {
     return Math.floor(at.y - (normal?.y ?? 0) * 1e-3) > c.above;
   }
 
-  /** A block's average colour (linear), for the chips a bullet knocks off it. */
-  private blockColor(id: number): [number, number, number] {
-    let c = this.blockColors.get(id);
-    if (c) return c;
-    const def = this.registry.blocks[id];
-    const layer = def?.tex[0] ?? 0;
-    const px = this.textures.albedoData.subarray(layer * 1024, layer * 1024 + 1024);
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    for (let i = 0; i < 1024; i += 4) {
-      r += (px[i] / 255) ** 2.2;
-      g += (px[i + 1] / 255) ** 2.2;
-      b += (px[i + 2] / 255) ** 2.2;
-    }
-    const tint = def?.tint ? DEFAULT_TINT : [1, 1, 1];
-    c = [(r / 256) * tint[0], (g / 256) * tint[1], (b / 256) * tint[2]];
-    this.blockColors.set(id, c);
-    return c;
-  }
-
-  /**
-   * Rubble from damage (a batch's carves: bullets' pits, a blast's crater): a few chips out of
-   * each block, more the more went, flung away from an explosion just shown, with a puff of dust.
-   */
-  private rubbleFromDamage(data: Uint8Array) {
-    const cells = damageTaken(data, 5);
-    // A big change at once (a player joining late catching up) throws nothing.
-    if (cells.length > 400) return;
-    for (const c of cells) {
-      const id = this.chunks.world.get_block(c.x, c.y, c.z);
-      const def = this.registry.blocks[id];
-      if (!def) continue;
-      const px = this.textures.albedoData.subarray(def.tex[0] * 1024, def.tex[0] * 1024 + 1024);
-      const tint = def.tint ? DEFAULT_TINT : null;
-      const n = Math.min(c.at.length, 1 + Math.floor(c.taken / 260));
-      const blast = this.blasts.find((b) => Math.hypot(b.at.x - c.x - 0.5, b.at.y - c.y - 0.5, b.at.z - c.z - 0.5) < 3 + b.size * 2);
-      for (let i = 0; i < n; i++) {
-        const [x, y, z] = c.at[i];
-        let v: Vec3;
-        if (blast) {
-          // Away from the blast, and up.
-          const dx = x - blast.at.x;
-          const dy = y - blast.at.y;
-          const dz = z - blast.at.z;
-          const l = Math.hypot(dx, dy, dz) || 1;
-          const k = (4 + Math.random() * 5) * Math.min(1.6, blast.size);
-          v = { x: (dx / l) * k, y: (dy / l) * k * 0.6 + 2 + Math.random() * 3, z: (dz / l) * k };
-        } else v = { x: (Math.random() - 0.5) * 2.4, y: Math.random() * 1.5, z: (Math.random() - 0.5) * 2.4 };
-        const size = c.taken > 600 ? 0.06 + Math.random() * 0.12 : 0.035 + Math.random() * 0.05;
-        this.rubble.add(x, y, z, size, v, px, tint);
-      }
-      // Dust.
-      const [x, y, z] = c.at[0] ?? [c.x + 0.5, c.y + 0.5, c.z + 0.5];
-      const col = this.blockColor(id);
-      const dust: [number, number, number] = [col[0] * 0.6 + 0.2, col[1] * 0.6 + 0.19, col[2] * 0.6 + 0.18];
-      this.particles.burstColor(x, y, z, dust, { count: blast ? 3 : 1, speed: blast ? 1.6 : 0.5, size: blast ? 0.3 : 0.14, gravity: -0.4, life: blast ? 1.8 : 0.9, drag: 2.2, spread: 0.3, up: 0.3, collide: false });
-    }
-  }
-
-  /** Rubble from a block broken whole: a handful of chunks tumbling out of where it was. */
-  private rubbleFromBlock(x: number, y: number, z: number, id: number) {
-    const def = this.registry.blocks[id];
-    if (!def || def.small) return;
-    const px = this.textures.albedoData.subarray(def.tex[0] * 1024, def.tex[0] * 1024 + 1024);
-    const blast = this.blasts.find((b) => Math.hypot(b.at.x - x - 0.5, b.at.y - y - 0.5, b.at.z - z - 0.5) < 3 + b.size * 2);
-    for (let i = 0; i < 6; i++) {
-      const at = { x: x + 0.2 + Math.random() * 0.6, y: y + 0.2 + Math.random() * 0.6, z: z + 0.2 + Math.random() * 0.6 };
-      const dx = blast ? at.x - blast.at.x : Math.random() - 0.5;
-      const dz = blast ? at.z - blast.at.z : Math.random() - 0.5;
-      const l = Math.hypot(dx, dz) || 1;
-      const k = blast ? 3 + Math.random() * 4 : 1 + Math.random() * 1.5;
-      this.rubble.add(at.x, at.y, at.z, 0.08 + Math.random() * 0.14, { x: (dx / l) * k, y: 1.5 + Math.random() * 3, z: (dz / l) * k }, px, def.tint ? DEFAULT_TINT : null);
-    }
-  }
-
   /**
    * What the game's widgets can bind from this screen's own state (`{{$gun.mag}}`, `{{$health}}`):
    * the held gun as this screen fires and reloads it, the movement abilities as it predicts them,
@@ -2102,8 +1721,7 @@ export class Runtime {
     this.renderer.render(this.camera, this.env, this.hooks, medium === 'water' ? 1 : medium === 'lava' ? 2 : 0);
     this.gameHud.update(dt, this.camera, window.innerWidth, window.innerHeight);
     const cpu = performance.now() - t0;
-    this.debug.tick(dt, cpu);
-    if (this.debug.visible) this.updateDebug();
+    this.devTools.tick(dt, cpu);
     this.input.endFrame();
   }
 
@@ -2120,36 +1738,6 @@ export class Runtime {
     return 'air';
   }
 
-  private updateDebug() {
-    const f = this.frameData;
-    const s = this.mine(f);
-    if (!f || !s) return;
-    const c = this.chunks.stats();
-    const r = this.renderer;
-    const yawDeg = ((((-this.view.yaw * 180) / Math.PI) % 360) + 360) % 360;
-    const facing = ['north (-Z)', 'east (+X)', 'south (+Z)', 'west (-X)'][Math.round(yawDeg / 90) % 4];
-    const rs = r.settings;
-    const mem = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
-    this.debug.set([
-      `Blockyard · ${this.def.title}`,
-      `${Math.round(this.debug.fpsValue)} fps   cpu ${this.debug.cpu.toFixed(2)} ms`,
-      '',
-      `XYZ      ${s.x.toFixed(2)} / ${s.y.toFixed(2)} / ${s.z.toFixed(2)}`,
-      `Chunk    ${Math.floor(s.x / 16)}, ${Math.floor(s.z / 16)}   section ${Math.floor(s.y / 16)}`,
-      `Facing   ${facing}   pitch ${((this.view.pitch * 180) / Math.PI).toFixed(1)}°`,
-      `Motion   ${s.flying ? 'flying' : s.inWater ? 'swimming' : s.onGround ? 'grounded' : 'airborne'}   ${Math.hypot(s.vx, s.vz).toFixed(2)} m/s`,
-      `Time     ${this.env.clock()}   game clock ${(this.frameData?.clock ?? 0).toFixed(1)} s`,
-      `Entities ${f.entities.length} alive   server ${f.players.length} playing`,
-      '',
-      `Columns  ${c.loaded} loaded · ${c.meshed} meshed · ${c.pending} pending upload`,
-      `Workers  ${this.pool.size} · gen ${c.generating} (${c.genMs.toFixed(2)} ms) · mesh ${c.meshing} (${c.meshMs.toFixed(2)} ms)`,
-      `Draws    ${r.stats.calls} (shadow ${r.stats.shadowCalls}) · ${(r.stats.triangles / 1e6).toFixed(2)}M tris`,
-      `Culling  ${c.visibleSections} sections visible · cave culling ${this.chunks.occlusion ? 'on' : 'off'}`,
-      `Render   ${Math.round(r.width * rs.renderScale)}x${Math.round(r.height * rs.renderScale)} · MSAA ${rs.msaa}x · shadows ${rs.shadowRes || 'off'}${this.quality.level ? ` · auto quality -${this.quality.level}` : ''}`,
-      mem ? `JS heap  ${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : '',
-    ]);
-  }
-
   // ---------------------------------------------------------------------------------------------
   // Development hooks (automated browser tests)
   // ---------------------------------------------------------------------------------------------
@@ -2159,21 +1747,9 @@ export class Runtime {
     this.beginPlay();
   }
 
-  /**
-   * Development tools (`await __game.dev('game.players.length')`): run `js` in this game's room
-   * on its server, a function body (or one expression) with `game` (the room's `GameContext`) and
-   * `me` (this client's own `Player` there, null until it joins) in scope. Resolves with the
-   * result as JSON (a promise it returns is awaited), or rejects with the error. Only a
-   * development server (`npm run dev`) runs it; any other refuses.
-   */
+  /** `await __game.dev('game.players.length')`: development code run in this game's room on its server (see `DevTools.dev`). */
   dev(js: string): Promise<unknown> {
-    if (!import.meta.env.DEV) return Promise.reject(new Error('__game.dev is for development builds'));
-    const reply = this.request<DevReply>({ t: 'dev', js });
-    const late = new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('__game.dev: no answer from the server in 10 s')), 10_000));
-    return Promise.race([reply, late]).then((r) => {
-      if (!r.ok) throw new Error(r.error);
-      return r.value;
-    });
+    return this.devTools.dev(js);
   }
 
   /** The first-person view (tests steer it through `yaw` / `pitch`). */
@@ -2181,22 +1757,14 @@ export class Runtime {
     return this.view;
   }
 
+  /** The replay playing on this screen, if one is (tests watch its `time`). */
+  get replay(): ReplayPlayback | null {
+    return this.replays.playback;
+  }
+
+  /** What's on screen: the game, the mode, whether the world's ready, this player's state, chunk and render stats. */
   debugInfo() {
-    return {
-      game: this.def.id,
-      mode: this.mode,
-      ready: this.worldReady,
-      host: 'server',
-      player: this.playerId,
-      state: this.mine(this.frameData) ?? null,
-      health: this.mine(this.frameData)?.health ?? 0,
-      entities: this.frameData?.entities.length ?? 0,
-      chunks: this.chunks.stats(),
-      render: { ...this.renderer.stats },
-      time: this.env.time,
-      fps: this.debug.fpsValue,
-      cpu: this.debug.cpu,
-    };
+    return this.devTools.info();
   }
 
   debugView(yaw: number, pitch: number) {
