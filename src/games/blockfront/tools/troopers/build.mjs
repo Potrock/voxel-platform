@@ -2,7 +2,8 @@
 /**
  * Blockfront II: the troopers and heroes, built as micro-voxel figures and written as binary glTF
  * 2.0 (`.glb`) to `src/games/blockfront/models/troopers/<id>.glb`, plus `index.ts` listing them
- * (`TROOPERS`: each side's trooper, heavy and specialist; `HERO_MODELS`: the heroes by hero id).
+ * (`TROOPERS`: each side's trooper, heavy and specialist; `TROOPER_VARIANTS`: every variant of
+ * each, the Rebels several people a class; `HERO_MODELS`: the heroes by hero id).
  * Dependency-free (Node 22+): `node src/games/blockfront/tools/troopers/build.mjs [ids...] [--out=dir]`
  * (with ids, only those files are rebuilt and index.ts is left alone). Every file is parsed back
  * and checked after it's written: the rig, the skin, every vertex on one bone, the budgets.
@@ -46,6 +47,11 @@
  * - Robes, tunics and ponchos hang like Call of Blocky's waitress's skirt: below `Y.split` from the
  *   thighs, each side's half from its own, so a stride swings them with the legs. Darth Voxel's
  *   cape hangs rigidly from his chest to his knees, standing off his back so his legs clear it.
+ * - Variants: a figure's `role` is [team, class, variant]. The Rebels are several people a class,
+ *   each class's kit and silhouette one (`REBEL_TROOPER`, ...): skins, faces (lashes, lips,
+ *   moustaches, beards), hair, headgear (helmet, field cap or bare; the heavy's cap's colour; the
+ *   specialist's hood up or down), women's builds (`slimF`, `broadF`, `heavyF`: the same limbs).
+ *   The Empire's troopers are one each.
  */
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -169,13 +175,18 @@ function hash(i, j, k, salt = 0) {
 // ---------------------------------------------------------------------------------------------
 // Builds: widths in design units. Arms and legs are even or odd as their widths say; the arms
 // hang beside the chest (`sh` its half-width), the legs from under the pelvis a voxel either side
-// of the middle. `shin` and `thigh` add rows to the legs (all above rises with them); `hunch`
-// brings the neck and head forward (and the head a row down).
+// of the middle. `bust` rounds out the chest; `shin` and `thigh` add rows to the legs (all above
+// rises with them); `hunch` brings the neck and head forward (and the head a row down).
 
 const BUILDS = {
   slim: { sh: 7, waist: 6, hip: 6, arm: 4, leg: 5, belly: 0 },
   broad: { sh: 8, waist: 7, hip: 7, arm: 6, leg: 6, belly: 0 },
   heavy: { sh: 8, waist: 8, hip: 7, arm: 6, leg: 6, belly: 2 },
+  // Women's: a bust, the waist a voxel in; the same limbs as the men's (the same joints, the same
+  // silhouette in the same kit).
+  slimF: { sh: 7, waist: 5, hip: 6, arm: 4, leg: 5, belly: 0, bust: 1 },
+  broadF: { sh: 8, waist: 6, hip: 7, arm: 6, leg: 6, belly: 0, bust: 1 },
+  heavyF: { sh: 8, waist: 7, hip: 7, arm: 6, leg: 6, belly: 1, bust: 1 },
   lord: { sh: 9, waist: 7, hip: 7, arm: 6, leg: 6, belly: 0, shin: 1, thigh: 1 },
   old: { sh: 7, waist: 6, hip: 6, arm: 4, leg: 5, belly: 1, hunch: 2 },
 };
@@ -249,10 +260,12 @@ function body(vox, s) {
   fill(vox, 'spine', [-W, Y.spine, -4], [W, Y.chest, bz], 'shirt', (p) => box(p, [-W, Y.spine - 2, -4], [W, Y.chest + 2, bz], [1.4, 0, 1.3 + b.belly * 0.8]));
   fill(vox, 'spine', [-W + 1, Y.spine - 2, -3], [W - 1, Y.spine, 3], 'shirt');
   fill(vox, 'spine', [-W + 1, Y.chest, -3], [W - 1, Y.chest + 2, 3], 'shirt');
-  // Chest: squared shoulders rounded over the top.
-  fill(vox, 'chest', [-sh, Y.chest, -4], [sh, Y.chestTop, 4], 'shirt', (p) => {
+  // Chest: squared shoulders rounded over the top, a bust on the women.
+  const bust = b.bust ?? 0;
+  fill(vox, 'chest', [-sh, Y.chest, -4], [sh, Y.chestTop, 4 + bust], 'shirt', (p) => {
     const w = p[1] < Y.chest + 2 ? Math.max(W, sh - 1) : sh;
-    return box(p, [-w, Y.chest - 4, -4], [w, Y.chestTop, 4], [2, 2.2, 1.4]);
+    if (box(p, [-w, Y.chest - 4, -4], [w, Y.chestTop, 4], [2, 2.2, 1.4])) return true;
+    return !!bust && box(p, [-sh + 1, Y.chest + 1, 0], [sh - 1, Y.chest + 5, 4 + bust], [1.4, 1.4, 1.2]);
   });
   // A stoop: the upper back rounded out behind the shoulders.
   if (b.hunch) fill(vox, 'chest', [-sh + 1, Y.chest + 2, -6], [sh - 1, Y.chestTop, 0], 'shirt', (p) => inEllipsoid(p, [0, Y.chestTop - 2.5, -3], [sh - 1.5, 4.5, 3.2]));
@@ -350,7 +363,8 @@ function skull(hv, colour = 'skin') {
 
 /**
  * A face on the skull: ears, a nose, eyes set in under proud brows (a dark pupil inside, a white
- * outside), a mouth; `beard`, `stubble`, `wrinkles`, `eye` (the pupils' colour).
+ * outside), a mouth; `stubble`, `wrinkles`, `eye` (the pupils' colour), `lashes` (finer brows, a
+ * lash at each eye's outer corner), `lips`, `tache` (a moustache), `goatee` (and a moustache).
  */
 function face(hv, o = {}) {
   const set = (i, j, k, c) => hv.set('head', i, j, k, c);
@@ -368,9 +382,20 @@ function face(hv, o = {}) {
       set(inner, j, FACE - 1, o.eye ?? 'eye');
       set(outer, j, FACE - 1, o.eyeWhite ?? 'white');
     }
-    for (const i of [inner - m, inner, outer, outer + m]) set(i, 7, i === inner - m ? FACE : P, 'brow');
+    for (const i of [inner - m, inner, outer, outer + m]) if (i !== inner - m || !o.lashes) set(i, 7, i === inner - m ? FACE : P, 'brow');
+    if (o.lashes) set(outer + m, 6, FACE, 'lash');
   }
-  for (const i of [-2, -1, 0, 1]) set(i, 1, FACE, 'mouth');
+  for (const i of [-2, -1, 0, 1]) set(i, 1, FACE, o.lips ? 'lips' : 'mouth');
+  if (o.lips) for (const i of [-1, 0]) set(i, 2, FACE, 'lips');
+  if (o.tache || o.goatee) {
+    // Over the mouth, a voxel proud, its ends turned down.
+    for (let i = -3; i < 3; i++) set(i, 2, P, 'beard');
+    for (const i of [-3, 2]) set(i, 1, P, 'beard');
+  }
+  if (o.goatee) {
+    for (const [i, j] of [[-2, 0], [-1, 0], [0, 0], [1, 0], [-1, -1], [0, -1]]) set(i, j, P, 'beard');
+    for (const i of [-1, 0]) set(i, 0, FACE, 'beard');
+  }
   if (o.stubble) for (let i = -5; i < 5; i++) for (const j of [0, 1, 2]) if (hv.get('head', i, j, FACE) === 'skin' && (i + j) % 2 === 0) set(i, j, FACE, 'stubble');
   if (o.wrinkles) {
     // Lines across the brow, under the eyes, down from the nose past the mouth.
@@ -383,8 +408,10 @@ function face(hv, o = {}) {
 
 /**
  * Hair: a shell a voxel over the skull where the style says: `cropped` (the back and sides, for
- * under a cap), `short` (and the top, a fringe), `swept` (Luke Skyblocker's: fuller, a side
- * parting, over the ears), `receding` (thin on top).
+ * under a cap), `short` (and the top, a fringe), `buzz` (close all over), `swept` (Luke
+ * Skyblocker's: fuller, a side parting, over the ears), `receding` (thin on top), `bun` (pulled
+ * back to a bun), `pony` (the back and sides, a ponytail hanging below a helmet's rim), `bob` (to
+ * the jaw at the sides and back, for under a cap).
  */
 function hair(hv, style) {
   const set = (i, j, k, c = 'hair') => hv.set('head', i, j, k, c);
@@ -403,7 +430,23 @@ function hair(hv, style) {
   const back = (p) => p[2] < 1;
   const sides = (p) => p[1] > 7 && p[2] < 3.5;
   if (style === 'cropped') shell((p) => (back(p) && p[1] > 2.5) || (sides(p) && p[1] < 9.5));
-  else if (style === 'short') {
+  else if (style === 'buzz') shell((p) => top(p) || (back(p) && p[1] > 3.5) || sides(p) || p[1] > 9.5);
+  else if (style === 'bun') {
+    shell((p) => top(p) || (back(p) && p[1] > 2.5) || sides(p) || p[1] > 9.5);
+    // A parting down the middle, the bun at the back of the crown, tied.
+    for (let k = -3; k < 6; k++) for (const i of [-1, 0]) if (hv.get('head', i, 12, k) === 'hair') set(i, 12, k, 'hairDark');
+    for (let i = -4; i < 4; i++)
+      for (let j = 5; j < 14; j++)
+        for (let k = -13; k < -6; k++) if (!skullAt(i, j, k) && inEllipsoid([C(i), C(j), C(k)], [0, 9.4, -9.2], [3, 2.8, 2.6])) set(i, j, k, k === -8 ? 'hairTie' : 'hair');
+  } else if (style === 'pony') {
+    shell((p) => (back(p) && p[1] > 2.5) || (sides(p) && p[1] < 9.5) || top(p));
+    // Tied at the nape under a helmet's rim, falling to the shoulders.
+    for (let j = -2; j < 4; j++) for (const i of [-1, 0]) for (const k of [-9, -8]) set(i, j, k, j === 3 ? 'hairTie' : 'hair');
+    for (const i of [-2, 1]) for (let j = 0; j < 3; j++) set(i, j, -9);
+  } else if (style === 'bob') {
+    shell((p) => top(p) || back(p) || p[1] > 8.5);
+    for (let i = -8; i < 8; i++) for (let j = 1; j < 10; j++) for (let k = -9; k < 2; k++) if (!skullAt(i, j, k) && inRound([C(i), C(j), C(k)], [-7.5, 1, -8], [7.5, 11, 2], [2, 0.8, 2])) set(i, j, k);
+  } else if (style === 'short') {
     shell((p) => top(p) || (back(p) && p[1] > 2.5) || sides(p) || p[1] > 9.5);
     for (let i = -5; i < 5; i++) if ((i + 7) % 3 !== 0) set(i, 9, 6);
   } else if (style === 'swept') {
@@ -570,6 +613,28 @@ function rebelHelmet(hv) {
   for (const m of [1, -1]) for (let j = 1; j < 7; j++) set(m > 0 ? 6 : -7, j, 1, 'strap');
 }
 
+/** A soft field cap: a flat-topped crown over the head, a darker band, a short bill in front. */
+function fieldCap(hv) {
+  const set = (i, j, k, c) => hv.set('head', i, j, k, c);
+  fill(hv, 'head', [-8, 8, -8], [8, 14, 7], (i, j) => (j === 8 ? 'fieldCapDark' : 'fieldCap'), (p) => inRound(p, [-7, 8, -7.3], [7, 13.6, 6], [2.6, 1, 2.6]));
+  for (let i = -5; i < 5; i++) for (let k = 6; k < 9; k++) if (!(Math.abs(C(i)) > 4 && k > 7)) set(i, 8, k, 'fieldCapDark');
+}
+
+/** A scarf pulled up over the mouth and nose's tip, wrapped round the jaw and the neck. */
+function gaiter(hv, colour = 'gaiter') {
+  for (let i = -8; i < 8; i++)
+    for (let j = -3; j < 4; j++)
+      for (let k = -5; k < 8; k++) {
+        const c = hv.get('head', i, j, k);
+        if (c === 'skin' || c === 'skinShade' || c === 'mouth' || c === 'lips' || c === 'stubble') {
+          // The skull's own cells stay (the scarf goes over them) unless they stand proud.
+          if (k < FACE + 1) continue;
+        }
+        if (!inRound([C(i), C(j), C(k)], [-7, -3, -4.4], [7, 3.6, 6.2], [2.2, 1.2, 2.2])) continue;
+        hv.set('head', i, j, k, j === 3 ? 'gaiterDark' : colour);
+      }
+}
+
 /** A knit cap: ribbed, a turned-up cuff round its rim, pulled down to the brow. */
 function beanie(hv) {
   const set = (i, j, k, c) => hv.set('head', i, j, k, c);
@@ -676,6 +741,14 @@ function lordHelmet(hv) {
 
 // ---------------------------------------------------------------------------------------------
 // Costume helpers
+
+/** A hood, down: gathered in a roll on the back of the shoulders under the neck, a fold across it. */
+function hoodDown(vox, s, colour, fold = null) {
+  const { Y } = s;
+  const f = typeof colour === 'function' ? colour : () => colour;
+  const back = backOf(vox, 'chest', 0, Y.chestTop - 2);
+  fill(vox, 'chest', [-6, Y.chestTop - 5, back - 3], [6, Y.chestTop + 2, back + 3], (i, j, k) => (fold && j === Y.chestTop - 2 && k < back - 1 ? fold : f(i, j, k)), (p) => inEllipsoid(p, [0, Y.chestTop - 1.5, back + 0.5], [5.8, 3.4, 3]));
+}
 
 /** For side m (1 the figure's left, -1 its right), an x range a..c on the left mirrored. */
 const X = (m, a, c) => (m > 0 ? [a, c] : [-c, -a]);
@@ -916,9 +989,9 @@ function rebelHeavy(vox, s) {
   for (let i = -6; i < 6; i++) for (const [j, k] of [[Y.chestTop, back - 3], [Y.chestTop, back - 4], [Y.chestTop + 1, back - 3], [Y.chestTop + 1, back - 4]]) vox.set('chest', i, j, k, Math.abs(C(i)) > 5 ? 'cellCap' : 'grille');
 }
 
-/** The scout: an Endor-camouflage poncho over the shoulders to the hips, dark trousers, a hood up. */
+/** The scout: an Endor-camouflage poncho over the shoulders to the hips, dark trousers, its hood up (the head's) or down (`o.hood`). */
 function rebelScout(vox, s) {
-  const { b, Y } = s;
+  const { b, Y, o } = s;
   const cam = camo(['camoA', 'camoB', 'camoC', 'camoD'], 3);
   // The poncho: over the chest and shoulders, hanging loose a voxel off the belly and the hips.
   coat(vox, 'chest', cam, (p) => p[1] > Y.chest - 0.5);
@@ -926,6 +999,8 @@ function rebelScout(vox, s) {
   skirt(vox, s, cam, { top: Y.chest + 1, bottom: Y.pelvis - 2, flare: 1.5, w0: b.sh + 0.2, d0: 5.2, zFlare: 0.6 });
   // A strap across it from the right shoulder.
   sash(vox, s, 'strap', { from: -1, w: 0.9 });
+  // Down, the hood's roll in its darker colours, apart from the poncho under it.
+  if (o.hood === 'down') hoodDown(vox, s, camo(['camoC', 'camoB', 'camoC'], 5), 'camoA');
 }
 
 /** Luke Skyblocker: the black tunic, wrapped over to the left, a standing collar, a belt, one black glove. */
@@ -965,8 +1040,7 @@ function ben(vox, s) {
   // The robe's front edges, lighter; folds down its back.
   vox.recolour('chest', (i, j, k, c) => (c === 'robe' && k > 0 && Math.abs(C(i)) < 5.6 ? 'robeEdge' : undefined));
   for (const part of ['chest', 'spine']) vox.recolour(part, (i, j, k, c) => (c === 'robe' && k < -4 && (i + 40) % 4 === 1 ? 'robeDark' : undefined));
-  const back = backOf(vox, 'chest', 0, Y.chestTop - 2);
-  fill(vox, 'chest', [-6, Y.chestTop - 5, back - 3], [6, Y.chestTop + 2, back + 3], (i, j, k) => (j === Y.chestTop - 2 && k < back - 1 ? 'robeDark' : 'robe'), (p) => inEllipsoid(p, [0, Y.chestTop - 1.5, back + 0.5], [5.8, 3.4, 3]));
+  hoodDown(vox, s, 'robe', 'robeDark');
   // The robe's skirt: behind and at the sides, down past the knees; the tunic's in front to mid-thigh.
   skirt(vox, s, 'tunic', { top: Y.belt - 1, bottom: Y.pelvis - 3, flare: 0.8, w0: b.hip + 0.3, d0: 4.3 });
   skirt(vox, s, (i, j, k) => ((i + 40) % 4 === 1 && k < -2 ? 'robeDark' : 'robe'), { top: Y.spine + 2, bottom: Y.knee - 2, flare: 2.2, zFlare: 1.4, open: 3, gap: (t) => t * 1.5 });
@@ -1052,21 +1126,72 @@ function emperor(vox, s) {
 const COMMON = { shoeStyle: 'boot', gloves: false };
 const WHITE = 0xeeeeea;
 const SUIT = 0x18181b;
+/** Each Rebel class's kit, the same for all its people. */
+const REBEL_TROOPER = { shirt: 0xb49c70, pants: 0xa38c62, shoes: 0x3b2a1e, vest: 0x5b6135, pouch: 0x4b5130, pouchFlap: 0x3e4327, helmet: 0x6b6f42, helmetDark: 0x5a5d36, helmetBand: 0x4a4c2d, strap: 0x3a2a1c, belt: 0x5a3a22, pack: 0x6a5a3a, packDark: 0x55472d, roll: 0x7c6a4c };
+const REBEL_HEAVY = { shirt: 0x535a36, pants: 0x46412f, shoes: 0x1e1a16, glove: 0x4a3222, strap: 0x4a3020, cell: 0x9aa0a6, cellCap: 0xc9a44a, belt: 0x4a3020, pouch: 0x5a5236, pack: 0x6e5a3a, packDark: 0x57472d };
+const REBEL_SCOUT = { shirt: 0x3f4a2e, sleeve: 0x3f4a2e, pants: 0x4d4430, shoes: 0x4a3322, strap: 0x3a2a1c };
 const FIGURES = [
+  // The Rebels: each class several people (skins, faces, hair, headgear), one kit and silhouette
+  // a class. Their `role` is [team, class, variant]; variant 0 is the class's own.
   {
-    id: 'rebel_trooper', name: 'Rebel Trooper', role: [0, 0], build: 'broad', dress: rebelTrooper,
+    id: 'rebel_trooper', name: 'Rebel Trooper', role: [0, 0, 0], build: 'broad', dress: rebelTrooper,
     head: (hv) => (skull(hv), face(hv, { stubble: true }), hair(hv, 'short'), rebelHelmet(hv)),
-    colours: { skin: 0xc68c63, hair: 0x3a2618, shirt: 0xb49c70, pants: 0xa38c62, shoes: 0x3b2a1e, vest: 0x5b6135, pouch: 0x4b5130, pouchFlap: 0x3e4327, helmet: 0x6b6f42, helmetDark: 0x5a5d36, helmetBand: 0x4a4c2d, strap: 0x3a2a1c, belt: 0x5a3a22, pack: 0x6a5a3a, packDark: 0x55472d, roll: 0x7c6a4c },
+    colours: { ...REBEL_TROOPER, skin: 0xc68c63, hair: 0x3a2618 },
   },
   {
-    id: 'rebel_heavy', name: 'Rebel Heavy', role: [0, 1], build: 'heavy', dress: rebelHeavy, o: { gloves: true },
+    id: 'rebel_trooper_b', name: 'Rebel Trooper', role: [0, 0, 1], build: 'broad', dress: rebelTrooper,
+    head: (hv) => (skull(hv), face(hv, { tache: true }), hair(hv, 'cropped'), fieldCap(hv)),
+    colours: { ...REBEL_TROOPER, skin: 0x6b4630, hair: 0x1a1512 },
+  },
+  {
+    id: 'rebel_trooper_c', name: 'Rebel Trooper', role: [0, 0, 2], build: 'broadF', dress: rebelTrooper,
+    head: (hv) => (skull(hv), face(hv, { lashes: true, lips: true, eye: 'eyeGreen' }), hair(hv, 'bun')),
+    colours: { ...REBEL_TROOPER, skin: 0xf0c9a4, hair: 0x8a3a1e },
+  },
+  {
+    id: 'rebel_trooper_d', name: 'Rebel Trooper', role: [0, 0, 3], build: 'broadF', dress: rebelTrooper,
+    head: (hv) => (skull(hv), face(hv, { lashes: true, lips: true }), hair(hv, 'pony'), rebelHelmet(hv)),
+    colours: { ...REBEL_TROOPER, skin: 0x5e3b27, hair: 0x1a1512 },
+  },
+  {
+    id: 'rebel_heavy', name: 'Rebel Heavy', role: [0, 1, 0], build: 'heavy', dress: rebelHeavy, o: { gloves: true },
     head: (hv) => (skull(hv), face(hv), hair(hv, 'cropped'), beard(hv), beanie(hv)),
-    colours: { skin: 0xd09a74, hair: 0x2c1d14, beard: 0x3a2618, shirt: 0x535a36, pants: 0x46412f, shoes: 0x1e1a16, glove: 0x4a3222, cap: 0x7a3b2a, capRib: 0x6a3224, capCuff: 0x5e2c20, strap: 0x4a3020, cell: 0x9aa0a6, cellCap: 0xc9a44a, belt: 0x4a3020, pouch: 0x5a5236, pack: 0x6e5a3a, packDark: 0x57472d },
+    colours: { ...REBEL_HEAVY, skin: 0xd09a74, hair: 0x2c1d14, beard: 0x3a2618, cap: 0x7a3b2a },
   },
   {
-    id: 'rebel_specialist', name: 'Rebel Specialist', role: [0, 2], build: 'slim', dress: rebelScout,
+    id: 'rebel_heavy_b', name: 'Rebel Heavy', role: [0, 1, 1], build: 'heavy', dress: rebelHeavy, o: { gloves: true },
+    head: (hv) => (skull(hv), face(hv, { goatee: true }), hair(hv, 'cropped'), beanie(hv)),
+    colours: { ...REBEL_HEAVY, skin: 0x5e3b27, hair: 0x1a1512, cap: 0x46546a },
+  },
+  {
+    id: 'rebel_heavy_c', name: 'Rebel Heavy', role: [0, 1, 2], build: 'heavyF', dress: rebelHeavy, o: { gloves: true },
+    head: (hv) => (skull(hv), face(hv, { lashes: true, lips: true }), hair(hv, 'bob'), beanie(hv)),
+    colours: { ...REBEL_HEAVY, skin: 0xb07650, hair: 0x2a1a12, cap: 0xb0862c },
+  },
+  {
+    id: 'rebel_heavy_d', name: 'Rebel Heavy', role: [0, 1, 3], build: 'heavy', dress: rebelHeavy, o: { gloves: true },
+    head: (hv) => (skull(hv), face(hv, { eye: 'eyeBlue' }), hair(hv, 'cropped'), beard(hv), beanie(hv)),
+    colours: { ...REBEL_HEAVY, skin: 0xf0c9a4, hair: 0xa8501f, beard: 0xb5562a, cap: 0x3a3a3f },
+  },
+  {
+    id: 'rebel_specialist', name: 'Rebel Specialist', role: [0, 2, 0], build: 'slim', dress: rebelScout,
     head: (hv) => (skull(hv), face(hv), hood(hv, camo(['camoA', 'camoB', 'camoC', 'camoD'], 5), { deep: 1, thick: 1.4, peak: 1 }), goggles(hv)),
-    colours: { skin: 0xe0b08a, hair: 0x5a3a20, shirt: 0x3f4a2e, sleeve: 0x3f4a2e, pants: 0x4d4430, shoes: 0x4a3322, strap: 0x3a2a1c },
+    colours: { ...REBEL_SCOUT, skin: 0xe0b08a, hair: 0x5a3a20 },
+  },
+  {
+    id: 'rebel_specialist_b', name: 'Rebel Specialist', role: [0, 2, 1], build: 'slimF', dress: rebelScout, o: { hood: 'down' },
+    head: (hv) => (skull(hv), face(hv, { lashes: true, lips: true }), hair(hv, 'bun'), goggles(hv)),
+    colours: { ...REBEL_SCOUT, skin: 0xa8704a, hair: 0x2a1a12 },
+  },
+  {
+    id: 'rebel_specialist_c', name: 'Rebel Specialist', role: [0, 2, 2], build: 'slim', dress: rebelScout,
+    head: (hv) => (skull(hv), face(hv), gaiter(hv), hood(hv, camo(['camoA', 'camoB', 'camoC', 'camoD'], 9), { deep: 1, thick: 1.4, peak: 1 })),
+    colours: { ...REBEL_SCOUT, skin: 0x6b4630, hair: 0x1a1512 },
+  },
+  {
+    id: 'rebel_specialist_d', name: 'Rebel Specialist', role: [0, 2, 3], build: 'slim', dress: rebelScout, o: { hood: 'down' },
+    head: (hv) => (skull(hv), face(hv, { stubble: true, eye: 'eyeBlue' }), hair(hv, 'buzz'), goggles(hv, { worn: true })),
+    colours: { ...REBEL_SCOUT, skin: 0xf0c9a4, hair: 0xc9a25c },
   },
   {
     id: 'imp_trooper', name: 'Stormtrooper', role: [1, 0], build: 'broad', dress: trooperArmour, o: { gloves: true },
@@ -1124,18 +1249,24 @@ function oldFace(hv) {
   hv.recolour('head', (i, j, k, c) => (j > 6 && dark[c] ? dark[c] : undefined));
 }
 
-/** Goggles on the forehead (over a hood): a strap round, two lenses in brass rims. */
-function goggles(hv) {
+/**
+ * Goggles: a strap across, two lenses in brass rims; on the forehead (over a hood or hair), or
+ * `worn` over the eyes, the strap round the head.
+ */
+function goggles(hv, { worn = false } = {}) {
+  const r = worn ? 5 : 9;
+  if (worn) hv.recolour('head', (i, j, k, c) => (j === r && k < 0 && (c === 'hair' || c === 'skin') ? 'strap' : undefined));
   for (let i = -7; i < 7; i++) {
-    const k = faceK(hv, i, 9);
-    if (k !== null) hv.set('head', i, 9, k + 1, 'strap');
+    const k = faceK(hv, i, r);
+    if (k !== null) hv.set('head', i, r, k + 1, 'strap');
   }
   for (const m of [1, -1])
-    for (const [a, j] of [[1, 9], [2, 9], [3, 9], [1, 10], [2, 10], [3, 10], [4, 9], [4, 10], [2, 8], [3, 8], [2, 11], [3, 11]]) {
+    for (const [a, dj] of [[1, 0], [2, 0], [3, 0], [1, 1], [2, 1], [3, 1], [4, 0], [4, 1], [2, -1], [3, -1], [2, 2], [3, 2]]) {
+      const j = r + dj;
       const i = m > 0 ? a : -a - 1;
       const k = faceK(hv, i, j);
       if (k === null) continue;
-      const rim = !(a === 2 || a === 3) || j === 8 || j === 11;
+      const rim = !(a === 2 || a === 3) || dj === -1 || dj === 2;
       hv.set('head', i, j, k + (rim ? 1 : 0) + 1, rim ? 'brass' : 'lens');
     }
 }
@@ -1166,6 +1297,10 @@ function palette(d) {
   add('brow', shade(hairC, hairC > 0x906000 ? 0.7 : 0.9), { rough: 0.7, vary: 0.03 });
   add('eye', 0x1c120e, { rough: 0.15, vary: 0 });
   add('eyeBlue', 0x2c5a8c, { rough: 0.15, vary: 0 });
+  add('eyeGreen', 0x3a6440, { rough: 0.15, vary: 0 });
+  add('lash', 0x141010, { rough: 0.5, vary: 0 });
+  add('lips', shade(skin, 0.72), { rough: 0.35, vary: 0 });
+  add('hairTie', 0x2a2a2e, { rough: 0.6, vary: 0 });
   add('eyeGlow', 0xffd21a, { rough: 0.2, glow: 1, vary: 0 });
   add('eyeGlowDim', 0xff9a1a, { rough: 0.2, glow: 0.9, vary: 0 });
   add('white', 0xf2eee6, { rough: 0.3, vary: 0 });
@@ -1206,9 +1341,14 @@ function palette(d) {
   add('pack', 0x6a5a3a, cloth);
   add('packDark', 0x55472d, cloth);
   add('roll', 0x7c6a4c, cloth);
-  add('cap', 0x7a3b2a, { rough: 0.95, vary: 0.05 });
-  add('capRib', 0x6a3224, { rough: 0.95, vary: 0.04 });
-  add('capCuff', 0x5e2c20, { rough: 0.95, vary: 0.04 });
+  const cap = c.cap ?? 0x7a3b2a;
+  add('cap', cap, { rough: 0.95, vary: 0.05 });
+  add('capRib', shade(cap, 0.87), { rough: 0.95, vary: 0.04 });
+  add('capCuff', shade(cap, 0.77), { rough: 0.95, vary: 0.04 });
+  add('fieldCap', 0x857651, { rough: 0.9, vary: 0.04 });
+  add('fieldCapDark', 0x6c603f, { rough: 0.9, vary: 0.03 });
+  add('gaiter', 0x5a5e3a, { rough: 0.95, vary: 0.05 });
+  add('gaiterDark', 0x4a4d2f, { rough: 0.95, vary: 0.03 });
   add('cell', 0x9aa0a6, { rough: 0.3, metal: 0.8, vary: 0.02 });
   add('cellCap', 0xc9a44a, { rough: 0.3, metal: 1, vary: 0 });
   add('camoA', 0x46552a, { rough: 0.9, vary: 0.04 });
@@ -1437,7 +1577,8 @@ for (const d of FIGURES) {
   console.log(`${d.id}.glb  ${d.name} (${d.build}): ${stats.voxels} voxels, ${stats.faces} faces as ${stats.quads} quads, ${v.tris} tris (${stats.hidden} faces hidden at rest${stats.duplicates ? `, ${stats.duplicates} duplicate faces dropped` : ''}), ${stats.tiles} tiles in ${stats.atlas}, ${(bytes.length / 1024).toFixed(1)} KB, ${v.height.toFixed(2)} m tall`);
 }
 if (!only.length && OUT === join(HERE, '../../models/troopers')) {
-  const troopers = (team) => FIGURES.filter((d) => d.role?.[0] === team).sort((a, b) => a.role[1] - b.role[1]);
+  const troopers = (team) => FIGURES.filter((d) => d.role?.[0] === team && !d.role[2]).sort((a, b) => a.role[1] - b.role[1]);
+  const variants = (team, cls) => FIGURES.filter((d) => d.role?.[0] === team && d.role[1] === cls).sort((a, b) => (a.role[2] ?? 0) - (b.role[2] ?? 0));
   const heroes = FIGURES.filter((d) => d.hero);
   const lines = [
     ...FIGURES.map((d) => `import ${d.id} from './${d.id}.glb?url';`),
@@ -1452,9 +1593,18 @@ if (!only.length && OUT === join(HERE, '../../models/troopers')) {
     '  url: string;',
     '}',
     '',
-    '/** For each side, one per class (`ClassInfo.model`: trooper, heavy, specialist). */',
+    '/** For each side, one per class (`ClassInfo.model`: trooper, heavy, specialist): its first variant. */',
     'export const TROOPERS: [TrooperModel[], TrooperModel[]] = [',
     ...[0, 1].flatMap((team) => ['  [', ...troopers(team).map((d) => `    { id: '${d.id}', name: '${d.name}', url: ${d.id} },`), '  ],']),
+    '];',
+    '',
+    '/**',
+    ' * Every variant of each side\'s classes (`[team][class]`, the first `TROOPERS`\'): the Rebels are',
+    ' * several people a class (faces, skins, hair, headgear; one kit and silhouette a class), the',
+    ' * Empire\'s troopers one each.',
+    ' */',
+    'export const TROOPER_VARIANTS: [TrooperModel[][], TrooperModel[][]] = [',
+    ...[0, 1].flatMap((team) => ['  [', ...troopers(team).flatMap((t) => ['    [', ...variants(team, t.role[1]).map((d) => `      { id: '${d.id}', name: '${d.name}', url: ${d.id} },`), '    ],']), '  ],']),
     '];',
     '',
     '/** The heroes\' models, by hero id. */',
