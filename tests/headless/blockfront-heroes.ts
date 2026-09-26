@@ -24,7 +24,12 @@ export default function blockfrontHeroes() {
   const me = g.player;
   g.commands.run('/bots 0');
   check(g.players.length === 1, `expected only the player once the bots went, got ${g.players.length}`);
-  for (let x = -14; x <= 14; x++) for (let z = -14; z <= 14; z++) g.world.setBlock(Math.floor(AT.x) + x, AT.y - 1, Math.floor(AT.z) + z, 'stone');
+  /** The platform, laid whole (again: bolts that miss chip it, and a section mustn't stand anyone on a hole). */
+  const floor = () => {
+    for (let x = -14; x <= 14; x++) for (let z = -14; z <= 14; z++) g.world.setBlock(Math.floor(AT.x) + x, AT.y - 1, Math.floor(AT.z) + z, 'air');
+    for (let x = -14; x <= 14; x++) for (let z = -14; z <= 14; z++) g.world.setBlock(Math.floor(AT.x) + x, AT.y - 1, Math.floor(AT.z) + z, 'stone');
+  };
+  floor();
   h.run(0.2);
 
   const troopers: Bot[] = [];
@@ -42,6 +47,7 @@ export default function blockfrontHeroes() {
   const place = (p: Player, x: number, z: number, yaw = 0) => p.teleport({ x: AT.x + x, y: AT.y, z: AT.z + z }, yaw, 0);
   /** Everyone's health back and spawn protection gone; the troopers held still, weapons down. */
   const ready = (who: Player[]) => {
+    floor();
     for (const p of who) {
       if (!p.alive) p.revive();
       p.health = p.maxHealth;
