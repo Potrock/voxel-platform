@@ -91,6 +91,8 @@ export const CONQUEST: WidgetDefinition = {
       background: rgba(6, 9, 13, 0.62); clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 8px 100%);
       font-variant-numeric: tabular-nums;
     }
+    @media (max-width: 1240px) { .side { width: 116px; } .n { font-size: 18px; min-width: 38px; } .bar { gap: 10px; padding: 7px 14px 8px; } }
+    @media (max-width: 980px) { .side { width: 78px; } .name { letter-spacing: 0.12em; } .low { display: none; } .posts { gap: 4px; } }
     @keyframes blink { 50% { opacity: 0.35; } }
     @keyframes breathe { 50% { filter: brightness(1.8); } }`,
 };
@@ -99,7 +101,7 @@ export const STATUS: WidgetDefinition = {
   at: 'top-right',
   html: `
     <div class="card" style="--c: {{color}}; --p: calc({{bp}} / {{heroCost}})">
-      <div class="who"><span class="mark"></span><span class="side">{{side}}</span><span class="role">{{role}}</span></div>
+      <div class="who"><span class="side"><span class="mark"></span>{{side}}</span><span class="role">{{role}}</span></div>
       <div class="bp"><span class="label">BATTLE POINTS</span><span class="value">{{bp}}</span></div>
       <div class="hero ready" data-if="heroReady"><span class="key">H</span><span>HERO READY</span></div>
       <div class="hero" data-if="!heroReady">
@@ -108,7 +110,7 @@ export const STATUS: WidgetDefinition = {
       </div>
     </div>`,
   css: `
-    :scope { margin: 0; align-self: flex-end; min-width: 236px; width: max-content; max-width: 340px; }
+    :scope { margin: 0; align-self: flex-end; width: 236px; }
     .card {
       position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 8px 14px 10px 18px; color: #e9edf2;
       background: linear-gradient(270deg, rgba(6, 9, 13, 0.8), rgba(6, 9, 13, 0.55));
@@ -116,10 +118,10 @@ export const STATUS: WidgetDefinition = {
       border-right: 2px solid var(--c);
     }
     .card::before { content: ''; position: absolute; left: 12px; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--hud-accent, #ffe81f)); opacity: 0.7; }
-    .who { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
-    .mark { width: 8px; height: 8px; background: var(--c); transform: rotate(45deg); box-shadow: 0 0 6px var(--c); }
+    .who { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; }
+    .mark { display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: var(--c); transform: rotate(45deg); box-shadow: 0 0 6px var(--c); }
     .side { font: 700 10px var(--pixel); letter-spacing: 0.22em; color: var(--c); }
-    .role { font: 700 14px var(--pixel); letter-spacing: 0.08em; color: #fff; text-transform: uppercase; white-space: nowrap; }
+    .role { max-width: 100%; font: 700 14px var(--pixel); letter-spacing: 0.06em; color: #fff; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bp { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 5px; }
     .label { font: 700 9px var(--pixel); letter-spacing: 0.2em; color: rgba(233, 237, 242, 0.55); }
     .value { font: 700 19px/1 var(--pixel); color: var(--hud-accent, #ffe81f); font-variant-numeric: tabular-nums; text-shadow: 0 0 10px rgba(255, 232, 31, 0.3); }
