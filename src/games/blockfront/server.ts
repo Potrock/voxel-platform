@@ -129,9 +129,16 @@ function smallerSide(person: boolean): Team {
   return count(0, false) <= count(1, false) ? 0 : 1;
 }
 
+/** Which of a class's looks someone wears: the same every life, from their name. */
+function looks(name: string): number {
+  let h = 7;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 /** Their trooper's model (a hero's is the hero module's). */
 function dress(f: Fighter) {
-  f.player.setModel(trooperModel(f.team, CLASSES[f.cls].model));
+  f.player.setModel(trooperModel(f.team, CLASSES[f.cls].model, looks(f.player.name)));
 }
 
 /** A trooper's kit: their class's blaster, a pistol, detonators; its health and pace. */
