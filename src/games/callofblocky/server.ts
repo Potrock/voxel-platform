@@ -879,6 +879,7 @@ export default defineServer(shared, {
     bots.supplies = ammo;
     rounds = new CaseRounds(game, { spawnAt: (f, at) => spawnAt(game, f, at), award, endMatch: (t) => endMatch(game, null, t) });
     streaks = new Streaks(game, { bots, award });
+    bots.aloft = (p) => streaks.aloft(p);
     streaks.setup();
     // (Development: tests reach the match and the streaks.)
     if (import.meta.env.DEV) (globalThis as unknown as { __cob: unknown }).__cob = { match, streaks };
