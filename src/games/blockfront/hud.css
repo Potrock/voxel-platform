@@ -15,7 +15,8 @@
   left: 18px;
   top: 16px;
   gap: 2px;
-  max-width: max(240px, calc(50vw - 350px));
+  /* Clear of the conquest bar in the middle. */
+  max-width: max(180px, calc(50vw - 330px));
 }
 .feed-line {
   padding: 3px 10px 3px 8px;
