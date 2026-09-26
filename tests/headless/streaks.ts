@@ -14,7 +14,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 
 /**
  * Call of Blocky's killstreaks you steer (`streaks/`): the local player calls in a Hellstorm with
- * 4 (not their lethal), steers it down onto a bot standing in the open while their body stays put
+ * 5 (4 is still their lethal), steers it down onto a bot standing in the open while their body stays put
  * and frozen, and gets the kill; then flies an attack chopper, works its gun onto another bot and
  * gets that kill; then the chopper is shot down (shots at it, as a gun reports them). Last, a bot
  * earns a Hellstorm, calls it in and flies it onto the player.
@@ -59,10 +59,16 @@ export default function streaks() {
   target.teleport({ x: spot.x, y: spot.y + 0.05, z: spot.z });
   h.step(DT, {});
   cob.streaks.earn(mine, 'hellstorm');
-  const slot = me.inventory.selected;
+  // 4 is still the lethal's slot (the streak is on 5).
   h.step(DT, { pressed: ['Digit4'] });
-  check(vehicle()?.name === 'hellstorm' && vehicle()!.remote, `4 calls in the Hellstorm, steered from afar (vehicle ${vehicle()?.name})`);
-  check(me.inventory.selected === slot, `4 didn't also pick the lethal (slot ${me.inventory.selected})`);
+  const lethal = me.inventory.held?.item;
+  check(me.inventory.selected === 3 && (lethal === 'frag' || lethal === 'molotov'), `4 picks the lethal (slot ${me.inventory.selected}: ${lethal})`);
+  check(!vehicle(), '4 calls nothing in');
+  h.step(DT, { pressed: ['Digit1'] });
+  const slot = me.inventory.selected;
+  h.step(DT, { pressed: ['Digit5'] });
+  check(vehicle()?.name === 'hellstorm' && vehicle()!.remote, `5 calls in the Hellstorm, steered from afar (vehicle ${vehicle()?.name})`);
+  check(me.inventory.selected === slot, `5 didn't also pick the empty fifth slot (slot ${me.inventory.selected})`);
   check(mine.streaks.length === 0, 'the streak is used');
   const body = { ...me.position };
   let t = 0;
@@ -96,8 +102,8 @@ export default function streaks() {
   const spot2 = open(me.position);
   prey.teleport({ x: spot2.x, y: spot2.y + 0.05, z: spot2.z });
   cob.streaks.earn(mine, 'chopper');
-  h.step(DT, { pressed: ['Digit4'] });
-  check(vehicle()?.name === 'chopper' && vehicle()!.remote, `4 calls in the chopper (vehicle ${vehicle()?.name})`);
+  h.step(DT, { pressed: ['Digit5'] });
+  check(vehicle()?.name === 'chopper' && vehicle()!.remote, `5 calls in the chopper (vehicle ${vehicle()?.name})`);
   const c0 = { ...(vehicle()!.state as ChopperState) };
   h.run(1, { pilot: () => ({ down: ['KeyW'] }) });
   const c1 = vehicle()!.state as ChopperState;

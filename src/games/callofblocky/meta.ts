@@ -17,7 +17,7 @@ export default defineMeta({
     ['C', 'crouch · slide'],
     ['1 2 3', 'weapons'],
     ['G', 'lethal (hold to cook)'],
-    ['4', 'call in a killstreak'],
+    ['5', 'call in a killstreak'],
     ['F', 'plant · crack the case (hold)'],
     ['L', 'loadout'],
     ['M', 'mode and map (your own game)'],
@@ -30,7 +30,7 @@ export default defineMeta({
   // killstreaks on its left, and the katana on R3; Y votes to skip (LB alone switches weapons).
   gamepad: {
     R3: ['Digit3', 'katana'],
-    Left: ['Digit4', 'killstreak'],
+    Left: ['Digit5', 'killstreak'],
     RB: ['KeyG', 'lethal'],
     Up: 'KeyL',
     Down: ['KeyF', 'plant · crack'],
