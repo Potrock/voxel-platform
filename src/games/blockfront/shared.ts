@@ -1,4 +1,5 @@
 import { defineShared, Models } from '@platform';
+import { BLOCKS } from './blocks';
 import hudCss from './hud.css?raw';
 import { MAPS, WORLD } from './map';
 import meta from './meta';
@@ -18,6 +19,7 @@ export const trooperModel = (team: Team, model: number) => Models.gltf(TROOPERS[
  */
 export const shared = defineShared({
   ...meta,
+  blocks: BLOCKS,
   world: {
     seed: WORLD.seed,
     terrain: 'void',
@@ -29,8 +31,9 @@ export const shared = defineShared({
     spawnYaw: MAPS[0].home.yaw,
     time: WORLD.time,
     freezeTime: true,
-    // Walls and roofs chip and scorch under blaster fire (each blaster's `carve`); the ground stays whole.
-    destructible: { above: WORLD.floorY - 1 },
+    // Walls and roofs chip and scorch under blaster fire (each blaster's `carve`); the ground and
+    // the canyon's walls round the town stay whole.
+    destructible: { above: WORLD.floorY - 1, except: ['canyon_rock', 'canyon_rock_pale'] },
   },
   player: {
     health: 100,
