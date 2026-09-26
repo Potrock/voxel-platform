@@ -153,7 +153,7 @@ function jag(a: Vec3, b: Vec3, rough = 0.1): Vec3[] {
 }
 
 /** A ring of beams round `at`, square to `dir`, `r` across: a Force wave's front. */
-function ring(B: Beams, at: Vec3, dir: Vec3, r: number, w: number, now: number) {
+function ring(B: Beams, at: Vec3, dir: Vec3, r: number, w: number, now: number, beam: FxBeam = 'white', life = 0.035) {
   const up = Math.abs(dir.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
   // Two directions across `dir`.
   let sx = dir.y * up.z - dir.z * up.y;
@@ -176,7 +176,7 @@ function ring(B: Beams, at: Vec3, dir: Vec3, r: number, w: number, now: number) 
   let prev = point(0);
   for (let i = 1; i <= n; i++) {
     const p = point(i);
-    if (i % 3 !== 0) B.line('white', prev, p, w, 0.035, now);
+    if (i % 3 !== 0) B.line(beam, prev, p, w, life, now);
     prev = p;
   }
 }
@@ -235,6 +235,8 @@ export function heroFx(scene: HeroScene): ClientKit {
   const zapped = new Map<string, number>();
   const chains: { p: string; path: string[]; until: number; next: number }[] = [];
   const hum = new Map<string, number>();
+  /** Rings spreading over the ground from a hero (a stance, a rage, an aura taking hold). */
+  const spreads: { at: Vec3; born: number; r: number; beam: FxBeam }[] = [];
   /** Force waves rolling out (a push) or in (a pull): a ring of air, travelling. */
   const waves: { from: Vec3; dir: Vec3; born: number; len: number; out: boolean }[] = [];
   /** Thrown sabers' meshes, by hero. */
@@ -449,6 +451,17 @@ export function heroFx(scene: HeroScene): ClientKit {
         ring(B, at, w.dir, r, 0.05 * (1 - age * 0.6), now);
         if (age < 0.6) ring(B, add(at, w.dir, -0.45), w.dir, r * 0.8, 0.03, now);
       }
+      for (let i = spreads.length - 1; i >= 0; i--) {
+        const g = spreads[i];
+        const age = (now - g.born) / 0.5;
+        if (age < 0) continue;
+        if (age >= 1) {
+          spreads.splice(i, 1);
+          continue;
+        }
+        const k = 1 - (1 - age) * (1 - age);
+        ring(B, g.at, { x: 0, y: 1, z: 0 }, 0.4 + g.r * k, 0.045 * (1 - age), now, g.beam, 0.04);
+      }
       // A rush: a streak behind.
       for (const [id, a] of scene.acts) {
         if (a.k !== 'rush' || now - a.at > a.t) continue;
@@ -576,7 +589,7 @@ export function heroFx(scene: HeroScene): ClientKit {
             const d = { x: dir.x * Math.cos(a) - dir.z * Math.sin(a), y: 0, z: dir.z * Math.cos(a) + dir.x * Math.sin(a) };
             fx.particles({ x: at.x + d.x * 1.2, y: at.y + 0.1, z: at.z + d.z * 1.2 }, [0.62, 0.55, 0.42], { count: 1, speed: rnd(5, 9), size: 0.07, gravity: 1, life: 0.5, drag: 2.5, collide: false });
           }
-          fx.shockwave({ x: at.x + dir.x * 1.5, y: at.y, z: at.z + dir.z * 1.5 }, 3, '#bfe4ff');
+          spreads.push({ at: { x: at.x + dir.x * 0.8, y: at.y + 0.08, z: at.z + dir.z * 0.8 }, born: scene.now, r: 2.4, beam: 'white' });
           fx.flare(from, 0.9);
           for (const h of m.hits ?? []) {
             const f = client.figures.all.find((g) => g.player === h);
@@ -603,7 +616,8 @@ export function heroFx(scene: HeroScene): ClientKit {
         const where = m.at ? { x: m.at[0], y: m.at[1], z: m.at[2] } : at;
         if (!where) break;
         const hero = scene.blades.get(m.p)?.hero ?? 'luke';
-        fx.shockwave(where, POWERS.leap.radius, HEROES[hero].blade);
+        spreads.push({ at: { x: where.x, y: where.y + 0.08, z: where.z }, born: scene.now, r: POWERS.leap.radius, beam: BEAM[hero] });
+        spreads.push({ at: { x: where.x, y: where.y + 0.08, z: where.z }, born: scene.now + 0.08, r: POWERS.leap.radius * 0.7, beam: 'white' });
         fx.particles({ x: where.x, y: where.y + 0.2, z: where.z }, [0.62, 0.55, 0.42], { count: 30, speed: 5, size: 0.16, gravity: 2, life: 0.8, spread: 0.6, up: 1, collide: false });
         fx.flare({ x: where.x, y: where.y + 0.5, z: where.z }, 2);
         if (dist(client.camera.position, where) < 12) fx.shake(0.15, 0.35);
@@ -615,7 +629,7 @@ export function heroFx(scene: HeroScene): ClientKit {
       case 'aura':
       case 'rage':
       case 'soresu':
-        if (at && m.on !== false) fx.shockwave(at, m.k === 'aura' ? POWERS.aura.radius : 2, m.k === 'aura' ? '#7a2cff' : m.k === 'rage' ? '#ff2a10' : '#7fd4ff');
+        if (at && m.on !== false) spreads.push({ at: { x: at.x, y: at.y + 0.08, z: at.z }, born: scene.now, r: m.k === 'aura' ? POWERS.aura.radius : 2.2, beam: m.k === 'aura' ? 'dark' : m.k === 'rage' ? 'red' : 'blue' });
         break;
     }
   }
