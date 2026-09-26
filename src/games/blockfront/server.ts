@@ -42,7 +42,7 @@ const BP = { kill: 100, headshot: 25, hero: 250, capture: 200, neutralise: 80 };
 /** How long after spawning a pick in the menu still changes what they carry now. */
 const REARM = 4;
 /** The third-person camera: over the right shoulder, a few blocks back. */
-const SHOULDER = { distance: 3.3, shoulder: { right: 0.72, up: 0.28 } };
+const SHOULDER = { distance: 3.6, shoulder: { right: 0.95, up: 0.42 } };
 
 const BOT_NAMES: [string[], string[]] = [
   ['Sgt. Varno', 'Cpl. Jex', 'Lt. Dray', 'Pvt. Kallis', 'Tamsin', 'Oro Brask', 'Hollis', 'Keet', 'Marn Vosk', 'Pell', 'Sgt. Idrin', 'Coyle', 'Zara Venn', 'Pvt. Olan', 'Dex Farro', 'Nima'],

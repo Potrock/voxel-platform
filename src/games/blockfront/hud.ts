@@ -57,7 +57,7 @@ export const STATUS: WidgetDefinition = {
       <div class="hero off" data-if="!heroReady">Hero at {{heroCost}}</div>
     </div>`,
   css: `
-    :scope { margin: 14px -4px 0 0; }
+    :scope { margin: 14px -4px 0 0; align-self: flex-end; width: max-content; }
     .panel { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 8px 12px; background: rgba(8, 11, 16, 0.72); border-right: 4px solid var(--c); color: #fff; }
     .role { font: 700 13px var(--pixel); letter-spacing: 0.06em; }
     .side { color: var(--c); }
