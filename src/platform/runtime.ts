@@ -1345,7 +1345,7 @@ export class Runtime {
     // goes with the next controls sent. (A weapons-locked freeze: they don't answer here either, so
     // nothing is sent to be refused.)
     const latest = this.walker && this.itemMode ? this.mine(this.frameData) : undefined;
-    if (latest) this.kitControls(dt, active && !latest.locked && !latest.dead && !latest.vehicle);
+    if (latest) this.kitControls(dt, active && !latest.locked && !latest.dead && !latest.vehicle, latest.dead);
     // The server keeps its own clock: it gets the controls every frame, numbered, with how long
     // they lasted: walking and vehicles move at once here (prediction), and the server moves them
     // input by input, the same way.
@@ -1628,7 +1628,7 @@ export class Runtime {
    * reads them (what one `consume`s reads idle to the next), turns the view, and sends actions of
    * its kind with them.
    */
-  private kitControls(dt: number, active: boolean) {
+  private kitControls(dt: number, active: boolean, dead: boolean) {
     const input = this.input;
     const view = this.view;
     const keys = new Set<string>();
@@ -1637,6 +1637,7 @@ export class Runtime {
     this.client.kindControls(
       {
         active,
+        dead,
         get yaw() {
           return view.yaw;
         },
