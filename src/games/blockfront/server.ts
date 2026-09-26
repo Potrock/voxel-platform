@@ -5,7 +5,7 @@ import { CLASSES, CLASS_IDS, type ClassId } from './classes';
 import { Conquest, type PostNews } from './conquest';
 import { HEROES, HERO_IDS, saberOf, type HeroId } from './heroes/defs';
 import { heroItems, setupHeroes, type Heroes } from './heroes/rules';
-import { CONQUEST, STATUS } from './hud';
+import { BOARD_COLUMNS, CONQUEST, STATUS } from './hud';
 import { MAPS, mapById, type SpawnPoint } from './map';
 import { fighterOf, hostile, match, teamFighters, type Fighter, type Post } from './match';
 import { MODES, ROTATION, type MatchPlan, type ModeId } from './modes';
@@ -77,6 +77,8 @@ const markers = new Map<string, string>();
 /** Each side's been warned its reinforcements are low. */
 const warned: [boolean, boolean] = [false, false];
 const LOW_TICKETS = 0.2;
+/** People told a hero's theirs to take. */
+const heroTold = new Set<string>();
 
 const heroMode = () => match.mode.heroes;
 const sideSize = () => Math.min(MAX_SIDE, sideOverride ?? match.mode.side);
@@ -127,9 +129,16 @@ function smallerSide(person: boolean): Team {
   return count(0, false) <= count(1, false) ? 0 : 1;
 }
 
+/** Which of a class's looks someone wears: the same every life, from their name. */
+function looks(name: string): number {
+  let h = 7;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 /** Their trooper's model (a hero's is the hero module's). */
 function dress(f: Fighter) {
-  f.player.setModel(trooperModel(f.team, CLASSES[f.cls].model));
+  f.player.setModel(trooperModel(f.team, CLASSES[f.cls].model, looks(f.player.name)));
 }
 
 /** A trooper's kit: their class's blaster, a pistol, detonators; its health and pace. */
@@ -509,7 +518,7 @@ function scoreboard(game: GameContext, show = false) {
   const sides = `${TEAMS[0].short} ${match.tickets[0]} · ${TEAMS[1].short} ${match.tickets[1]}`;
   game.hud.scoreboard({
     title: `${match.map.name.toUpperCase()} · ${match.mode.name.toUpperCase()}`,
-    columns: ['Score', 'Kills', 'Deaths', 'Posts'],
+    columns: [...BOARD_COLUMNS],
     rows,
     footer: match.phase === 'over' ? `${sides} · next: ${planName(plan)} in ${Math.max(0, Math.ceil(INTERMISSION - (game.clock.now - overAt)))}` : `${sides} · ${fmt(left)} left`,
     show,
@@ -528,6 +537,7 @@ function conquestBar(game: GameContext) {
       state: p.contested ? 'contested' : p.moving !== null ? 'moving' : '',
       fill: Math.round(Math.abs(p.control) * 20) / 20,
       lean: p.control > 0 ? 'rebels' : p.control < 0 ? 'empire' : 'none',
+      by: p.moving === null ? 'none' : TEAMS[p.moving].id,
     })),
     clock: fmt(left),
   });
@@ -550,9 +560,14 @@ function personalHud(game: GameContext, f: Fighter) {
     side: TEAMS[f.team].short,
     role: f.hero ? HEROES[f.hero].name : CLASSES[f.cls].name,
     bp: f.bp,
+    hero: !!f.hero,
     heroReady: ready,
     heroCost: cheapest,
   });
+  // A hero's theirs to take: a chime, once.
+  if (ready && !heroTold.has(p.id)) p.audio.play('ui_hero_ready');
+  if (ready) heroTold.add(p.id);
+  else heroTold.delete(p.id);
   // Taking a post: how far it's come (0 the other side's, a half nobody's, 1 ours).
   const post = p.alive && match.mode.posts ? conquest.postOf(p) : null;
   if (post && !post.spec.locked && (post.moving !== null || post.contested || post.owner !== f.team)) {

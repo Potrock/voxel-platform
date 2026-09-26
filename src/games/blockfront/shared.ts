@@ -1,16 +1,23 @@
 import { defineShared, Models } from '@platform';
-import hudCss from './hud.css?raw';
 import { HERO_ABILITIES } from './heroes/abilities';
+import { THEME_CSS } from './hud';
 import { MAPS, WORLD } from './map';
 import meta from './meta';
-import { TROOPERS } from './models';
+import { TROOPER_VARIANTS } from './models';
 import { STYLE } from './style';
 import type { Team } from './teams';
 
 export const COLORS = { yellow: '#ffe81f', ink: '#0b0f14', paper: '#e9edf2', red: '#ff3b30', blue: '#4db8ff', green: '#5dff6a' };
 
-/** A side's trooper of a class (`ClassInfo.model`): a model on the platform's humanoid rig. */
-export const trooperModel = (team: Team, model: number) => Models.gltf(TROOPERS[team][model % TROOPERS[team].length].url, { rig: 'humanoid', ...STYLE });
+/**
+ * A side's trooper of a class (`ClassInfo.model`), in one of its looks (`variant`, any number: the
+ * Rebels have a few faces a class, the Empire's are all alike): a model on the platform's humanoid rig.
+ */
+export function trooperModel(team: Team, model: number, variant = 0) {
+  const classes = TROOPER_VARIANTS[team];
+  const looks = classes[model % classes.length];
+  return Models.gltf(looks[Math.abs(variant) % looks.length].url, { rig: 'humanoid', ...STYLE });
+}
 
 /**
  * What the server and every screen agree on: the maps (built into one void world over a desert
@@ -68,8 +75,8 @@ export const shared = defineShared({
       display: "'Orbitron', 'Arial Black', sans-serif",
       text: "'Titillium Web', 'Helvetica Neue', system-ui, sans-serif",
       fonts: ['Orbitron', 'Titillium Web'],
-      colors: { accent: COLORS.yellow, ink: COLORS.ink, paper: COLORS.paper, text: COLORS.ink, danger: COLORS.red, good: COLORS.yellow },
-      css: hudCss,
+      colors: { accent: COLORS.yellow, ink: COLORS.ink, paper: COLORS.ink, text: COLORS.paper, danger: COLORS.red, good: COLORS.paper },
+      css: THEME_CSS,
     },
   },
 });
