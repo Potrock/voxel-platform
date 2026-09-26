@@ -38,6 +38,7 @@ export async function devGames(): Promise<GameEntry[]> {
     import('./callofblocky/previews/map.meta'),
     import('./callofblocky/previews/guns.meta'),
     import('./blockfront/previews/arsenal.meta'),
+    import('./blockfront/previews/map.meta'),
     import('./moves/meta'),
     import('./highnoon/meta'),
   ]);
@@ -50,6 +51,7 @@ export async function devGames(): Promise<GameEntry[]> {
     () => import('./callofblocky/previews/map.client'),
     () => import('./callofblocky/previews/guns.client'),
     () => import('./blockfront/previews/arsenal.client'),
+    () => import('./blockfront/previews/map.client'),
     () => import('./moves/client'),
     () => import('./highnoon/client'),
   ];
