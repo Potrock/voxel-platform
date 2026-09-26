@@ -47,8 +47,11 @@ const PIT_R = 19.5;
 const LEDGE_R = 22.5;
 const WALL_R = 24.5;
 const ROAD_R = 30.5;
-/** Where the bay's gates are, in degrees round from east (toward the south): turned well off the streets. */
-const GATES = [30, 120, 210, 300];
+/**
+ * Where the bay's gates are, in degrees round from east (toward the south): six of them, so no
+ * one gate is the way in, each with a screen in front of it (nobody sees through from the street).
+ */
+const GATES = [30, 90, 150, 210, 270, 330];
 
 // Everything from the pit's floor up past the tower, out to the canyon's rim.
 const bp = new Blueprint({ x: WEST - 10, y: PIT - 2, z: NORTH - 12 }, { x: EAST - WEST + 21, y: 36, z: SOUTH - NORTH + 25 });
@@ -384,8 +387,10 @@ function hangar() {
     set(-87, FLOOR + 3, s * (HZ + 1), 'rebel_light');
     set(-84, FLOOR + 3, s * (HZ + 1), 'rebel_light');
   }
-  // Lights under the vault.
-  for (let x = HX0 + 4; x < HX1; x += 6) for (const z of [-6, 0, 6]) set(x, wallTop + vault(z) - 1, z, 'rebel_light');
+  // Lights under the vault, and a strip low round the walls.
+  for (let x = HX0 + 3; x < HX1; x += 4) for (const z of [-8, -3, 3, 8]) set(x, wallTop + vault(z) - 1, z, 'rebel_light');
+  for (let x = HX0 + 2; x < HX1 - 1; x += 3) for (const z of [-HZ, HZ]) set(x, FLOOR + 3, z, 'rebel_light');
+  for (let z = -HZ + 2; z < HZ - 1; z += 3) set(HX0, FLOOR + 3, z, 'rebel_light');
   // The gantry across the back: a deck four up, stairs to it along each side wall, a rail.
   const deck = FLOOR + 4;
   fill(HX0 + 1, deck - 1, -HZ + 1, HX0 + 4, deck - 1, HZ - 1, 'durasteel_dark');
@@ -478,8 +483,8 @@ function bay() {
   disc(BAY.x, BAY.z, ROAD_R, (x, z, d) => {
     if (d < PIT_R) {
       // The pit: its floor three down, a ring of landing lights, the old scorch.
-      const lights = Math.abs(d - 16.5) < 0.5 && (x + z) % 3 === 0;
-      set(x, PIT - 1, z, lights ? 'pad_amber' : hash(x, z, 30) < 0.04 ? 'black_concrete' : Math.abs(d - 16.5) < 0.5 ? 'hazard' : 'paving');
+      const ringed = Math.abs(d - 16.5) < 0.5;
+      set(x, PIT - 1, z, ringed && (x + z) % 3 === 0 ? 'pad_amber' : ringed ? 'ashlar' : hash(x >> 1, z >> 1, 30) < 0.05 ? 'packed_sand' : 'paving');
       for (let y = PIT; y <= G; y++) set(x, y, z, 'air');
     } else if (d < PIT_R + 1) {
       for (let y = PIT - 1; y <= G; y++) set(x, y, z, 'ashlar');
@@ -492,8 +497,8 @@ function bay() {
       set(x, G, z, 'paving');
     } else set(x, G, z, hash(x, z, 31) < 0.5 ? 'packed_sand' : 'sand');
   });
-  // Four gates (4 wide, 4 high), turned 15 degrees off the streets so no two line up and no
-  // street looks straight through; a lamp either side, and a ramp down into the pit from each.
+  // The gates (5 wide, 4 high), a lamp either side, and a ramp down into the pit from each (but
+  // the one behind the freighter).
   for (const deg of GATES) {
     const t = (deg * Math.PI) / 180;
     const [c, sn] = [Math.cos(t), Math.sin(t)];
@@ -501,19 +506,20 @@ function bay() {
       if (d < LEDGE_R - 1) return;
       const along = (x + 0.5 - BAY.x) * c + (z + 0.5 - BAY.z) * sn;
       const across = -(x + 0.5 - BAY.x) * sn + (z + 0.5 - BAY.z) * c;
-      if (along > 0 && Math.abs(across) < 2) for (let y = FLOOR; y < FLOOR + 4; y++) set(x, y, z, 'air');
-      if (along > 0 && Math.abs(Math.abs(across) - 3) < 0.5 && d > WALL_R - 0.6) set(x, FLOOR + 4, z, 'pad_amber');
+      if (along > 0 && Math.abs(across) < 2.5) for (let y = FLOOR; y < FLOOR + 4; y++) set(x, y, z, 'air');
+      if (along > 0 && Math.abs(Math.abs(across) - 3.5) < 0.5 && d > WALL_R - 0.6) set(x, FLOOR + 4, z, 'pad_amber');
     });
     // A screen out on the ring road in front of it: nobody sees in through it from the street.
     disc(BAY.x, BAY.z, ROAD_R, (x, z) => {
       const along = (x + 0.5 - BAY.x) * c + (z + 0.5 - BAY.z) * sn;
       const across = -(x + 0.5 - BAY.x) * sn + (z + 0.5 - BAY.z) * c;
-      if (Math.abs(across) < 3.5 && Math.abs(along - (WALL_R + 3)) < 0.6) {
+      if (Math.abs(across) < 4.5 && Math.abs(along - (WALL_R + 3.5)) < 0.6) {
         for (let y = FLOOR; y < FLOOR + 3; y++) set(x, y, z, y === FLOOR ? 'plaster_grime' : 'plaster_sand');
         set(x, FLOOR + 3, z, slab('plaster'));
       }
     });
     // The ramp: three stairs down from the ledge's lip to the floor, three wide.
+    if (deg === 270) continue;
     const alongX = Math.abs(c) > Math.abs(sn);
     const f: Facing = alongX ? (c < 0 ? 'west' : 'east') : sn < 0 ? 'north' : 'south';
     const mid = alongX ? Math.round(BAY.z + sn * (PIT_R - 1) - 0.5) : Math.round(BAY.x + c * (PIT_R - 1) - 0.5);
@@ -537,13 +543,13 @@ function bay() {
       }
     }
   }
-  // Ladders up the ring wall's outside, north and south, to the walk along its top.
+  // Ladders up the ring wall's outside, east and west, to the walk along its top.
   for (let y = FLOOR; y <= FLOOR + 8; y++) {
-    set(0, y, -24, 'ladder[facing=north]');
-    set(0, y, 25, 'ladder[facing=south]');
+    set(25, y, 0, 'ladder[facing=east]');
+    set(-25, y, 0, 'ladder[facing=west]');
   }
-  set(0, FLOOR + 8, -23, 'air');
-  set(0, FLOOR + 8, 24, 'air');
+  set(24, FLOOR + 8, 0, 'air');
+  set(-24, FLOOR + 8, 0, 'air');
   // The freighter, nose east, north of the post.
   ships.freighter(at(0, -8, 2), PIT);
   // Cargo round the post: crates, drums, a fuel line, a cargo sled.
@@ -581,10 +587,13 @@ function cantina() {
   // boards inside the bar.
   disc(CANTINA.x, CANTINA.z, HALL_R + 0.5, (x, z, d) => {
     set(x, G, z, d < 4.5 ? 'spruce_planks' : Math.abs(d - 7.5) < 0.6 ? 'brown_concrete' : d < HALL_R - 1 ? 'ashlar' : 'paving');
-    if (d >= HALL_R - 1) for (let y = FLOOR; y <= top; y++) set(x, y, z, y === FLOOR ? 'plaster_grime' : y === top - 1 ? 'adobe' : y === FLOOR + 4 && (x + z) % 4 === 0 ? 'plaster_window' : 'plaster');
+    // Windows high in the drum let the afternoon in (and shots through).
+    if (d >= HALL_R - 1) for (let y = FLOOR; y <= top; y++) set(x, y, z, y === FLOOR ? 'plaster_grime' : y === top - 1 ? 'adobe' : y === FLOOR + 4 && (x + z) % 4 === 0 && d < HALL_R ? 'air' : 'plaster');
     else for (let y = FLOOR; y <= top; y++) set(x, y, z, 'air');
   });
   dome(bp, CANTINA.x, CANTINA.z, HALL_R + 0.5, 8, top + 1, 'plaster', 1);
+  // Lamps round the foot of the dome inside.
+  ring(bp, CANTINA.x, CANTINA.z, HALL_R - 1.5, top, top, (x, _y, z) => ((x * 7 + z) % 4 === 0 ? 'pad_amber' : undefined));
   // A lantern on top of the dome.
   disc(CANTINA.x, CANTINA.z, 1.5, (x, z) => fill(x, top + 8, z, x, top + 9, z, (_x, y) => (y === top + 9 ? slab('plaster') : 'pad_amber')));
   // The bar: a ring of counter round the pillar that holds the dome up, lit from underneath.
@@ -1031,16 +1040,27 @@ function streets() {
   props.crates(bp, 68, FLOOR, -43, 2, 2, 2, 40);
   props.landspeeder(at(51, -44, 2), 0, FLOOR, 0, 'white_concrete');
   props.drums(bp, 29, FLOOR, -43, 3, 41);
-  // The squares north and south of the bay.
-  props.crates(bp, -4, FLOOR, -37, 2, 2, 2, 42);
-  props.drums(bp, 4, FLOOR, -41, 3, 43);
-  props.crates(bp, 3, FLOOR, 36, 2, 2, 2, 44);
-  props.drums(bp, -5, FLOOR, 40, 3, 45);
-  // Lamps along the ring road.
+  // The squares north and south of the bay: a water tank on stilts, a speeder, cargo.
+  props.waterTank(bp, -8, FLOOR, -39);
+  props.landspeeder(at(5, -38, 1), 0, FLOOR, 0, 'orange_concrete');
+  props.crates(bp, -3, FLOOR, -34, 2, 2, 2, 42);
+  props.drums(bp, 9, FLOOR, -43, 3, 43);
+  props.waterTank(bp, 6, FLOOR, 37);
+  props.landspeeder(at(-5, 38, 3), 0, FLOOR, 0, 'cyan_concrete');
+  props.crates(bp, 2, FLOOR, 33, 2, 2, 2, 44);
+  props.drums(bp, -10, FLOOR, 42, 3, 45);
+  // Along the ring road, between the gates: lamps, and cargo against the outer edge to fight from.
   for (let a = 0; a < 12; a++) {
     const t = (a / 12) * Math.PI * 2 + 0.26;
     props.lamp(bp, Math.floor(BAY.x + Math.cos(t) * (ROAD_R - 0.5)), FLOOR, Math.floor(BAY.z + Math.sin(t) * (ROAD_R - 0.5)));
   }
+  GATES.forEach((deg, i) => {
+    const t = ((deg + 30) * Math.PI) / 180;
+    const x = Math.floor(BAY.x + Math.cos(t) * (ROAD_R - 2));
+    const z = Math.floor(BAY.z + Math.sin(t) * (ROAD_R - 2));
+    if (i % 2) props.crates(bp, x, FLOOR, z, 2, 2, 2, 50 + i);
+    else props.drums(bp, x, FLOOR, z, 4, 50 + i);
+  });
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -35,6 +35,14 @@ export function vaporator(c: Canvas, x: number, y: number, z: number, h = 7) {
   c.set(x, y + h, z, 'vaporator_pipe');
 }
 
+/** A water tank on stilts: four legs, a drum of dark plating three across, a vent on top (walk under it). */
+export function waterTank(c: Canvas, x: number, y: number, z: number) {
+  for (const [dx, dz] of [[0, 0], [2, 0], [0, 2], [2, 2]] as const) for (let k = 0; k < 3; k++) c.set(x + dx, y + k, z + dz, 'pole');
+  box(c, x, y + 3, z, x + 2, y + 4, z + 2, (bx, by, bz) => ((bx === x || bx === x + 2) && (bz === z || bz === z + 2) && by === y + 4 ? slab('hull') : by === y + 3 ? 'hull_dark' : 'vaporator_base'));
+  c.set(x + 1, y + 5, z + 1, 'vaporator_ring');
+  c.set(x + 1, y + 6, z + 1, 'vaporator_pipe');
+}
+
 /** A lamp on a pole: a dark post, a glowing head. */
 export function lamp(c: Canvas, x: number, y: number, z: number, head: BlockRef = 'pad_amber', h = 3) {
   for (let k = 0; k < h; k++) c.set(x, y + k, z, 'vaporator_pipe');

@@ -134,7 +134,7 @@ const REBEL_PANEL = {
     return grain(x, y, 31) < 0.1 ? '#6d704f' : pick(['#787b58', '#7c7f5b', '#747754'], x >> 2, y >> 2, 32);
   },
 };
-const HANGAR_FLOOR = { color: '#8c8880', noise: 0.15, scale: 4, seed: 33 };
+const HANGAR_FLOOR = { paint: (x: number, y: number) => (x === 0 || y === 0 ? '#8a867e' : shade('#a8a49b', 0.97 + 0.06 * grain(x >> 2, y >> 2, 33))) };
 /** Hazard stripes on the slant: Rebel orange on dark grey, worn. */
 const HAZARD = { paint: (x: number, y: number) => (((x + y) >> 2) & 1 ? (grain(x, y, 34) < 0.1 ? '#4a4a44' : '#3a3a36') : grain(x, y, 35) < 0.1 ? '#b85a22' : '#d9661f') };
 
