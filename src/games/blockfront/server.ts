@@ -10,6 +10,7 @@ import { MAPS, mapById, type SpawnPoint } from './map';
 import { fighterOf, hostile, match, teamFighters, type Fighter, type Post } from './match';
 import { MODES, ROTATION, type MatchPlan, type ModeId } from './modes';
 import { COLORS, shared, trooperModel } from './shared';
+import { setupSkies, updateSkies } from './skies'; // skies
 import { other, TEAMS, type Team } from './teams';
 import { BLASTERS, COOL_AFTER, COOL_FULL, defineWeapons, feedIcon, weaponFor, weaponName } from './weapons';
 
@@ -659,6 +660,7 @@ export default defineServer(shared, {
     markers.clear();
     conquest = new Conquest(game);
     defineWeapons(game);
+    setupSkies(game); // skies
     heroes = setupHeroes(game, { teamOf: (p) => fighterOf(p)?.team ?? null, hostile });
     heroes.define();
     game.hud.define('conquest', CONQUEST);
@@ -809,6 +811,7 @@ export default defineServer(shared, {
   update(game, dt) {
     const now = game.clock.now;
     heroes.update(dt);
+    updateSkies(game, dt); // skies
     bots.update(dt, match.phase !== 'playing');
     if (match.phase === 'over') {
       if (now - overAt > INTERMISSION) game.restart();

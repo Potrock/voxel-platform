@@ -119,7 +119,7 @@ export const DETONATOR: ThrowableItem = {
   speed: 20,
   lift: 8,
   physics: { gravity: 24, bounce: 0.25, friction: 0.5, radius: 0.12 },
-  blast: { radius: 5.5, damage: [150, 18], knockback: 1.3, carve: 2.2, size: 2 },
+  blast: { radius: 5.5, damage: [150, 18], knockback: 1.3, carve: 2.2, size: 2, color: '#9fd8ff' },
   cooldown: 0.9,
   stack: 2,
 };

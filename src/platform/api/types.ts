@@ -1697,9 +1697,10 @@ export interface ThrowableItem extends ItemBase {
    * `radius` blocks and not behind a wall, the thrower too; `knockback` (default 1); a crater
    * `carve` blocks round (a destructible world's walls bitten into; in any other, whole blocks
    * blown out; default 0, none); and how big the explosion looks and sounds, `size` (1 a small
-   * bang; from 2 a shockwave and a big one; default from `radius`, up to 1.4).
+   * bang; from 2 a shockwave and a big one; default from `radius`, up to 1.4), in `color` (its
+   * fire and ring; default the orange of a fireball).
    */
-  blast?: { radius: number; damage: number | [middle: number, edge: number]; knockback?: number; carve?: number; size?: number };
+  blast?: { radius: number; damage: number | [middle: number, edge: number]; knockback?: number; carve?: number; size?: number; color?: string };
   /**
    * Fire where it goes off (a molotov): flames on the ground `radius` blocks round for `duration`
    * seconds, burning anyone standing in them for `damage` a second (not behind a wall). `color`

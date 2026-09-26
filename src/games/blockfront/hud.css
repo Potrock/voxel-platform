@@ -410,6 +410,7 @@
 .menu-title {
   font: 900 26px var(--pixel);
   letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--hud-accent, #ffe81f);
   text-shadow: 0 0 18px rgba(255, 232, 31, 0.3);
 }
@@ -547,6 +548,37 @@
   background: rgba(6, 9, 13, 0.9);
   border: 1px solid rgba(255, 90, 79, 0.5);
   color: #ff8a80;
+}
+/* One section alone (Heroes vs Villains: only its heroes): its cards share the width. */
+.menu-section:only-child .menu-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+/* The last section a single choice (the match menu's Go): a call to action, in the accent. */
+.menu-section:last-child:not(:only-child) .menu-grid:has(> .menu-entry:only-child) {
+  grid-template-columns: 1fr;
+}
+.menu-section:last-child:not(:only-child) .menu-entry:only-child:not(.disabled) {
+  justify-content: center;
+  padding: 14px;
+  border-color: var(--hud-accent, #ffe81f);
+  background: linear-gradient(180deg, #ffe81f, #e8c800);
+  color: #0b0f14;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+.menu-section:last-child:not(:only-child) .menu-entry:only-child:not(.disabled) .menu-label {
+  font-size: 16px;
+  letter-spacing: 0.24em;
+  color: #0b0f14;
+}
+.menu-section:last-child:not(:only-child) .menu-entry:only-child:not(.disabled) .menu-note {
+  color: rgba(11, 15, 20, 0.7);
+}
+.menu-section:last-child:not(:only-child) .menu-entry:only-child:not(.disabled) .menu-text {
+  flex: none;
+  align-items: center;
+}
+.menu-section:last-child:not(:only-child) .menu-entry:only-child:not(.disabled):hover {
+  background: linear-gradient(180deg, #fff27a, #ffe81f);
 }
 /* Where to deploy: compact, the post's letter first. */
 .menu-section:nth-child(3) .menu-grid {
