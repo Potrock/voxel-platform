@@ -1,4 +1,5 @@
 import { defineMeta } from '@platform';
+import cover from './cover.webp?url';
 
 /**
  * Call of Blocky: fast pulp shootouts on Jackrabbit Lane, a Nuketown-style cul-de-sac, and at Big
@@ -9,6 +10,7 @@ export default defineMeta({
   title: 'Call of Blocky',
   tagline: 'Free-for-all, Team Deathmatch and The Briefcase, on Jackrabbit Lane and at Big Kahuna Burger.',
   accent: '#ffcc00',
+  cover,
   controls: [
     ['LMB', 'fire'],
     ['RMB', 'aim'],

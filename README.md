@@ -33,7 +33,7 @@ The compute-heavy work (terrain generation, lighting, meshing, physics, path-fin
 | **Sandbox** | `?game=sandbox` | Creative building in an endless world, which the server keeps. |
 | **Heart Hunt** | `?game=heart-hunt` | A gentle hunt for ten hidden hearts, and the tutorial game (about 70 lines; see docs/PLATFORM.md). |
 
-The title screen lists every game in `src/games/browser.ts`. The pause menu offers restart and exit.
+The home page lists every game in `src/games/browser.ts`, each on a card with its cover. The pause menu (Escape) has how to play, the settings, an invite link and the way back to the games (and, in a game of your own, a restart).
 
 **To write your own game, read [docs/PLATFORM.md](docs/PLATFORM.md).** In short, a game is a folder of four parts:
 
