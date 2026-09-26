@@ -227,7 +227,15 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       if (!t) return false;
       const fx = -Math.sin(p.yaw);
       const fz = -Math.cos(p.yaw);
-      const to = { x: p.position.x + fx * P.lands, y: p.position.y, z: p.position.z + fz * P.lands };
+      // Where they land: in front of him, or as near that as a body fits (not in a wall); else where they are.
+      let to = { ...t.position };
+      for (const d of [P.lands, P.lands * 0.6, 1]) {
+        const at = { x: p.position.x + fx * d, y: p.position.y, z: p.position.z + fz * d };
+        if (game.world.fits(at)) {
+          to = at;
+          break;
+        }
+      }
       const stun = rules.heroOf(t) ? P.heroStun : P.stun;
       held.set(t.id, { by: p, kind: 'pull', from: now(), until: now() + P.time + stun, a: { ...t.position }, b: to, move: P.time, owed: 0 });
       t.freeze(true, { weapons: true });
@@ -267,7 +275,9 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       if (g.choking) return false;
       const t = aimed(p, P.range);
       if (!t) return false;
-      held.set(t.id, { by: p, kind: 'choke', from: now(), until: now() + P.time, a: { ...t.position }, b: { x: t.position.x, y: t.position.y + P.lift, z: t.position.z }, move: P.rise, owed: 0 });
+      // Lifted as high as there's room for (not into a ceiling).
+      const lift = [P.lift, P.lift * 0.5, 0].find((h) => game.world.fits({ x: t.position.x, y: t.position.y + h, z: t.position.z })) ?? 0;
+      held.set(t.id, { by: p, kind: 'choke', from: now(), until: now() + P.time, a: { ...t.position }, b: { x: t.position.x, y: t.position.y + lift, z: t.position.z }, move: P.rise, owed: 0 });
       t.freeze(true, { weapons: true });
       g.choking = t.id;
       setActive(p, slot, P.time);
