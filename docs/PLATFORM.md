@@ -951,7 +951,7 @@ export const shared = defineShared({
 **HUD for vehicles:**
 - `hud.meter(id, label, 0..1, { color })` draws a bar (shields, boost).
 - `hud.marker(id, at, { shape: 'box' | 'diamond' | 'ring' | 'reticle' | 'dot', color, size, label, edge, pulse, offset })` draws target brackets and waypoints. `at` is a spot, or something to follow: a prop, an entity or a player, placed by each screen every frame where it draws it (and sent only once). `offset` is in a prop's own space: `{ z: -30 }` is a reticle 30 blocks ahead of a ship's nose. With `edge`, off-screen targets become arrows on the screen edge; `size: { world: n }` scales the marker with distance.
-- `hud.radar({ center, heading?, range, blips })` draws a round radar; `center` and each blip's `at` can follow things too, and centred on a prop it turns with it.
+- `hud.radar({ center, heading?, range, blips, at? })` draws a round radar, bottom right; `center` and each blip's `at` can follow things too, and centred on a prop it turns with it. `at: 'top-right'` (any widget place) puts it there instead, under the game's widgets in that place.
 - `hud.crosshair(false)` hides the default crosshair.
 
 **Effects and sound:**

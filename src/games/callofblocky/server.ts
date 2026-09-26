@@ -727,7 +727,9 @@ function personalHud(game: GameContext, f: Fighter, dt: number) {
   const key = `${uav}|${friends.map((b) => b.player.id).join(',')}|${foes.map((b) => b.player.id).join(',')}`;
   if (key !== f.radar) {
     f.radar = key;
+    // Top right, under their dossier (its streak and what the streak's earned).
     p.hud.radar({
+      at: 'top-right',
       center: p,
       range: 48,
       blips: [...friends.map((e) => ({ at: e.player, color: TEAMS[f.team!].color, size: 4 })), ...foes.map((e) => ({ at: e.player, color: uav ? COLORS.pink : COLORS.red, size: 5 }))],
