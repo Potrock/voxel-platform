@@ -1,5 +1,5 @@
 import { defineShared, Models } from '@platform';
-import hudCss from './hud.css?raw';
+import { THEME_CSS } from './hud';
 import { MAPS, WORLD } from './map';
 import meta from './meta';
 import { TROOPERS } from './models';
@@ -64,8 +64,8 @@ export const shared = defineShared({
       display: "'Orbitron', 'Arial Black', sans-serif",
       text: "'Titillium Web', 'Helvetica Neue', system-ui, sans-serif",
       fonts: ['Orbitron', 'Titillium Web'],
-      colors: { accent: COLORS.yellow, ink: COLORS.ink, paper: COLORS.paper, text: COLORS.ink, danger: COLORS.red, good: COLORS.yellow },
-      css: hudCss,
+      colors: { accent: COLORS.yellow, ink: COLORS.ink, paper: COLORS.ink, text: COLORS.paper, danger: COLORS.red, good: COLORS.paper },
+      css: THEME_CSS,
     },
   },
 });
