@@ -107,7 +107,7 @@ export function setupHeroes(game: GameContext, rules: HeroRules): Heroes {
       cut(by, target) {
         const at = { x: target.position.x, y: target.position.y + 1.2, z: target.position.z };
         send(MSG.cut, { p: by.id, at: p3(at) } satisfies Cut);
-        game.audio.play('saber_hit', { at, pitch: 0.9 + Math.random() * 0.2 });
+        game.audio.play('bfh_saber_hit', { at, pitch: 0.9 + Math.random() * 0.2 });
       },
       send,
     });
@@ -151,7 +151,7 @@ export function setupHeroes(game: GameContext, rules: HeroRules): Heroes {
       if (!all) k.drain(t, GUARD.parry);
       if (who.has(by.id)) k.stagger(by, GUARD.stagger);
       send(MSG.clash, { p: t.id, by: by.id, at: p3(blade) } satisfies Clash);
-      game.audio.play('saber_clash', { at: blade, pitch: 0.9 + Math.random() * 0.2 });
+      game.audio.play('bfh_saber_clash', { at: blade, pitch: 0.9 + Math.random() * 0.2 });
       return;
     }
     if (hit.weapon === FORCE.lightning || hit.weapon === FORCE.chain) {
@@ -163,7 +163,7 @@ export function setupHeroes(game: GameContext, rules: HeroRules): Heroes {
     if (hit.weapon === FORCE.throw) {
       hit.amount *= GUARD.parried;
       send(MSG.clash, { p: t.id, by: by?.id ?? '', at: p3(blade) } satisfies Clash);
-      game.audio.play('saber_clash', { at: blade });
+      game.audio.play('bfh_saber_clash', { at: blade });
     }
   });
   game.events.on('playerDamage', ({ player }) => {
@@ -192,7 +192,7 @@ export function setupHeroes(game: GameContext, rules: HeroRules): Heroes {
       hurtAt.set(p.id, -99);
       kind()?.fresh(p);
       Object.assign(p.abilities[HERO_ABILITY] as HeroMove, { h: heroNumber(id), c0: 0, c1: 0, c2: 0, a0: 0, a1: 0, a2: 0, g: 1, k: 1, m: GUARD.meter, j: 0, r: 0, l: 0 });
-      game.audio.play('saber_ignite', { at: p.eye });
+      game.audio.play('bfh_saber_ignite', { at: p.eye });
     },
     end(p) {
       if (!who.has(p.id)) return;
@@ -250,7 +250,7 @@ export function setupHeroes(game: GameContext, rules: HeroRules): Heroes {
         // A deflection's zing at each blade that turned something (one a step each).
         for (const id of new Set(deflects.map((d) => d.p))) {
           const p = game.players.find((q) => q.id === id);
-          if (p) game.audio.play('saber_deflect', { at: bladePoint(p), pitch: 0.9 + Math.random() * 0.25 });
+          if (p) game.audio.play('bfh_saber_deflect', { at: bladePoint(p), pitch: 0.9 + Math.random() * 0.25 });
         }
         deflects = [];
       }

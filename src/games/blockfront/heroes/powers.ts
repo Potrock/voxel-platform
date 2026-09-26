@@ -216,7 +216,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
         t.impulse(ax * P.out * k, P.up * k, az * P.out * k);
       }
       send({ p: p.id, k: 'push', hits: hits.map((h) => h.id), dir: [fx, 0, fz] });
-      game.audio.play('force_push', { at: p.eye });
+      game.audio.play('bfh_force_push', { at: p.eye });
       return true;
     },
     pull(p) {
@@ -231,7 +231,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       t.freeze(true, { weapons: true });
       hurt(t, P.damage * heroScale(t), p, FORCE.pull);
       send({ p: p.id, k: 'pull', target: t.id, t: P.time + stun });
-      game.audio.play('force_pull', { at: p.eye });
+      game.audio.play('bfh_force_pull', { at: p.eye });
       return true;
     },
     soresu(p, slot) {
@@ -240,7 +240,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       g.soresu = now() + t;
       setActive(p, slot, t);
       send({ p: p.id, k: 'soresu', on: true, t });
-      game.audio.play('force_stance', { at: p.eye });
+      game.audio.play('bfh_force_stance', { at: p.eye });
       return true;
     },
     throw(p) {
@@ -256,7 +256,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       const dist = Math.max(2, hit ? Math.hypot(hit.point.x - from.x, hit.point.y - from.y, hit.point.z - from.z) - 0.4 : P.range);
       g.thrown = { from, dir, dist, start: now(), last: { ...from }, cut: [new Set(), new Set()] };
       send({ p: p.id, k: 'throw', from: p3(from), dir: p3(dir), dist: Math.round(dist * 100) / 100, t: P.out + P.back });
-      game.audio.play('saber_throw', { at: from });
+      game.audio.play('bfh_saber_throw', { at: from });
       return true;
     },
     choke(p, slot) {
@@ -270,7 +270,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       g.choking = t.id;
       setActive(p, slot, P.time);
       send({ p: p.id, k: 'choke', on: true, target: t.id, t: P.time });
-      game.audio.play('force_choke', { at: chest(t) });
+      game.audio.play('bfh_force_choke', { at: chest(t) });
       return true;
     },
     rage(p, slot) {
@@ -279,7 +279,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       g.rage = now() + t;
       setActive(p, slot, t);
       send({ p: p.id, k: 'rage', on: true, t });
-      game.audio.play('force_rage', { at: p.eye });
+      game.audio.play('bfh_force_rage', { at: p.eye });
       return true;
     },
     lightning(p, slot) {
@@ -317,7 +317,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       }
       path.forEach((t, i) => hurt(t, P.damage * P.falloff ** i * heroScale(t), p, FORCE.chain, 0.2));
       send({ p: p.id, k: 'chain', path: path.map((t) => t.id) });
-      game.audio.play('lightning_chain', { at: p.eye });
+      game.audio.play('bfh_lightning_chain', { at: p.eye });
       return true;
     },
     aura(p, slot) {
@@ -327,7 +327,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       g.auraNext = now();
       setActive(p, slot, t);
       send({ p: p.id, k: 'aura', on: true, t });
-      game.audio.play('dark_aura', { at: p.eye });
+      game.audio.play('bfh_dark_aura', { at: p.eye });
       return true;
     },
   };
@@ -370,7 +370,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       r.cut.add(t.id);
       hurt(t, R.damage * heroScale(t), p, FORCE.rush, 0.8);
       game.clients.send('all', MSG.cut, { p: p.id, at: p3(chest(t)) });
-      game.audio.play('saber_hit', { at: chest(t) });
+      game.audio.play('bfh_saber_hit', { at: chest(t) });
     }
     r.last = b;
     if (now() > r.until) g.rush = null;
@@ -393,12 +393,12 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       cut.add(v.id);
       hurt(v, P.damage * heroScale(v), p, FORCE.throw, 0.6);
       game.clients.send('all', MSG.cut, { p: p.id, at: p3(chest(v)) });
-      game.audio.play('saber_hit', { at: chest(v) });
+      game.audio.play('bfh_saber_hit', { at: chest(v) });
     }
     th.last = at;
     if (t >= P.out + P.back) {
       g.thrown = null;
-      game.audio.play('saber_catch', { at: hand });
+      game.audio.play('bfh_saber_catch', { at: hand });
     }
   };
 
@@ -454,10 +454,10 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
     if (name === 'rush') {
       g.rush = { cut: new Set(), last: { ...p.position }, until: now() + POWERS.rush.time + 0.12 };
       send({ p: p.id, k: 'rush' });
-      game.audio.play('saber_rush', { at: p.eye });
+      game.audio.play('bfh_saber_rush', { at: p.eye });
     } else if (name === 'leap') {
       send({ p: p.id, k: 'leap' });
-      game.audio.play('force_leap', { at: p.eye });
+      game.audio.play('bfh_force_leap', { at: p.eye });
     } else if (name === 'land') {
       const L = POWERS.leap;
       const at = { ...p.position };
@@ -471,8 +471,8 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
         t.impulse((dx / d) * L.out * k, L.up2 * k, (dz / d) * L.out * k);
       }
       send({ p: p.id, k: 'land', at: p3(at), hits: hits.map((h) => h.id) });
-      game.audio.play('force_land', { at });
-    } else if (name === 'jump') game.audio.play('force_jump', { at: p.position });
+      game.audio.play('bfh_force_land', { at });
+    } else if (name === 'jump') game.audio.play('bfh_force_jump', { at: p.position });
   });
 
   const endAll = (p: Player) => {

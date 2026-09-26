@@ -112,7 +112,7 @@ export function sabers(): ItemKit<Sabers> {
         s.broken = GUARD.broken;
         s.stagger = Math.max(s.stagger, 0.5);
         setGuard(p, s, false, { broke: true });
-        host.audio().play('guard_break', { at: p.eye });
+        host.audio().play('bfh_guard_break', { at: p.eye });
       },
       stagger(p, seconds) {
         const s = of(p);
@@ -186,7 +186,7 @@ function begin(use: ItemUse<SaberItem>, s: SaberState, n: number, rules: SaberRu
   s.asked = -99;
   s.next = (n + 1) % 3;
   use.swing('use', n === 2 ? 1.3 : 1);
-  use.host.audio().play('saber_swing', { at: p.eye, pitch: [1, 1.12, 0.86][n] * (0.96 + Math.random() * 0.08) });
+  use.host.audio().play('bfh_saber_swing', { at: p.eye, pitch: [1, 1.12, 0.86][n] * (0.96 + Math.random() * 0.08) });
   rules.send(MSG.swing, { p: p.id, n, d: Math.round(s.len * 1000) / 1000 } satisfies Swing);
 }
 
