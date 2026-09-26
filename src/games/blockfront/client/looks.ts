@@ -27,7 +27,7 @@ const blaster = (id: string, team: 0 | 1, sound: string, compact = false): ItemL
   icon: { gltf: url(id) },
   hold: { style: 'gun', model: HeldModels.gltf(url(id)), gun: compact ? FP_COMPACT : FP, ...(compact ? { stance: 'pistol' as const } : {}) },
   tracer: TEAMS[team].bolt,
-  sounds: { use: sound, reload: 'vent', empty: 'overheat' },
+  sounds: { use: `${sound}_${TEAMS[team].id}`, reload: 'vent', empty: 'overheat' },
 });
 
 /**
