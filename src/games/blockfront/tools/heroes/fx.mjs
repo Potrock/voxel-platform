@@ -14,13 +14,17 @@ import { Palette, Voxels, faces, atlas, quadCorners, png, writeGlb, DIRS } from 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../heroes/models');
 
-/** The beams, by name: their colour (sRGB). They glow fully (the emissive map at its brightest). */
+/**
+ * The beams, by name: their colour (sRGB). They glow fully (the emissive map at its brightest), so
+ * a bright colour blooms out pale: the blades' colours are the sabers' own deep glow colours (as
+ * `tools/weapons/build.mjs` has them), which come out on screen near each hero's `blade`.
+ */
 const BEAMS = {
   lightning: 0x8f7cff,
-  green: 0x7dff8a,
-  blue: 0x7fd4ff,
-  red: 0xff4a3a,
-  crimson: 0xff3a6e,
+  green: 0x0c8418,
+  blue: 0x1664d4,
+  red: 0xa00808,
+  crimson: 0xa80a24,
   white: 0xffffff,
   dark: 0x7a1cff,
 };
