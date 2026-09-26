@@ -3,6 +3,7 @@ import type { Client, ClientKit, Node } from '@platform/client';
 import { Color, Quat, Vec3 as V3 } from '@platform/client/math';
 import { HEROES, saberOf, type HeroId } from '../defs';
 import { fxItem, type FxBeam } from '../fxitems';
+import { STYLE } from '../../style';
 import { POWERS } from '../tuning';
 import { BEAM, type Blade, type HeroScene } from './state';
 
@@ -16,6 +17,8 @@ interface Lit {
 }
 
 const Z = new V3(0, 0, 1);
+/** How big a saber is in the hand (the figures' `heldScale`): a thrown one is drawn as big. */
+const HELD_SCALE = STYLE.poses?.heldScale ?? 0.52;
 const tq = new Quat();
 const tv = new V3();
 
@@ -131,7 +134,7 @@ const mid = (b: Blade): Vec3 => lerp3(b.base, b.tip, 0.55);
 function jag(a: Vec3, b: Vec3, rough = 0.1): Vec3[] {
   const d = sub(b, a);
   const l = len(d) || 1;
-  const n = Math.max(3, Math.min(14, Math.round(l / 0.55)));
+  const n = Math.max(3, Math.min(22, Math.round(l / 0.38)));
   // Two directions across it.
   const f = { x: d.x / l, y: d.y / l, z: d.z / l };
   const u = Math.abs(f.y) < 0.9 ? { x: -f.z, y: 0, z: f.x } : { x: 1, y: 0, z: 0 };
@@ -296,9 +299,9 @@ export function heroFx(scene: HeroScene): ClientKit {
             if (!at) break;
             const def = client.item(m.w) as GunItem | undefined;
             const color = (def && typeof def.tracer === 'string' && def.tracer) || '#ff5a1f';
-            fx.particles(at, lin(color), { count: 10, speed: 7, size: 0.05, gravity: 10, glow: 3, life: 0.28, spread: 0.06, collide: false });
-            fx.particles(at, [1, 0.95, 0.8], { count: 6, speed: 5, size: 0.035, gravity: 12, glow: 3, life: 0.2, collide: false });
-            fx.flare(at, 0.6);
+            fx.particles(at, [1, 0.92, 0.75], { count: 9, speed: 7, size: 0.028, gravity: 12, glow: 4, life: 0.22, spread: 0.04, collide: false });
+            fx.particles(at, lin(color), { count: 4, speed: 5, size: 0.03, gravity: 10, glow: 4, life: 0.18, collide: false });
+            fx.flare(at, 0.5);
             fx.tracer(at, { x: m.to[0], y: m.to[1], z: m.to[2] }, color);
             break;
           }
@@ -408,17 +411,19 @@ export function heroFx(scene: HeroScene): ClientKit {
           client.scene.add(made.node);
           thrown.set(id, (t = { node: made.node, center: made.center, spin: Math.random() * 6, lastTip: null }));
         }
-        // Spinning flat, about its middle, as it flies.
+        // Spinning flat (tipped a little), about its middle, as it flies: the size it is in the hand.
         t.spin += dt * Math.PI * 2 * 3.2;
-        const q = new Quat().setFromAxisAngle(new V3(0, 1, 0), t.spin).multiply(new Quat().setFromAxisAngle(new V3(1, 0, 0), Math.PI / 2 - 0.25));
-        const c = new V3(t.center.x, t.center.y, t.center.z).applyQuaternion(q);
+        const q = new Quat().setFromAxisAngle(new V3(0, 1, 0), t.spin).multiply(new Quat().setFromAxisAngle(new V3(1, 0, 0), 0.22));
+        const size = HELD_SCALE;
+        const c = new V3(t.center.x, t.center.y, t.center.z).multiplyScalar(size).applyQuaternion(q);
         t.node.quaternion.copy(q);
+        t.node.scale.setScalar(size);
         t.node.position.set(fl.at.x - c.x, fl.at.y - c.y, fl.at.z - c.z);
-        // Its blade glowing, its tip streaking.
+        // Its blade glowing (from about the hilt's end to the tip), its tip streaking.
         const along = new V3(0, 0, 1).applyQuaternion(q);
-        const reach = 0.62;
-        const tip = add(fl.at, along, reach);
-        const base = add(fl.at, along, -reach * 0.15);
+        const reach = t.center.z * size;
+        const tip = add(fl.at, along, reach * 1.1);
+        const base = add(fl.at, along, -reach * 0.4);
         B.keep(`thrown:${id}`, BEAM[heroId], base, tip, 0.06);
         B.keep(`thrownc:${id}`, 'white', base, tip, 0.026);
         if (t.lastTip) B.line(BEAM[heroId], t.lastTip, tip, 0.05, 0.14, now);
@@ -472,15 +477,17 @@ export function heroFx(scene: HeroScene): ClientKit {
     const now = scene.now;
     const pts = jag(a, b, rough);
     for (let i = 1; i < pts.length; i++) {
-      B.line('white', pts[i - 1], pts[i], 0.028, life, now);
-      B.line('lightning', pts[i - 1], pts[i], 0.075, life, now);
+      B.line('white', pts[i - 1], pts[i], 0.016, life, now);
+      B.line('lightning', pts[i - 1], pts[i], 0.05, life, now);
     }
-    if (pts.length > 4 && Math.random() < 0.7) {
+    // A fork or two off it.
+    for (let f = 0; f < 2; f++) {
+      if (pts.length < 5 || Math.random() > 0.65) continue;
       const from = pts[1 + Math.floor(Math.random() * (pts.length - 3))];
       const d = sub(b, a);
-      const end = add(from, { x: d.x * 0.25 + rnd(-0.6, 0.6), y: d.y * 0.25 + rnd(-0.5, 0.6), z: d.z * 0.25 + rnd(-0.6, 0.6) });
-      const fork = jag(from, end, 0.2);
-      for (let i = 1; i < fork.length; i++) B.line('lightning', fork[i - 1], fork[i], 0.04, life, now);
+      const end = add(from, { x: d.x * 0.2 + rnd(-0.6, 0.6), y: d.y * 0.2 + rnd(-0.5, 0.6), z: d.z * 0.2 + rnd(-0.6, 0.6) });
+      const fork = jag(from, end, 0.25);
+      for (let i = 1; i < fork.length; i++) B.line('lightning', fork[i - 1], fork[i], 0.02, life, now);
     }
     void client;
   }
@@ -523,19 +530,29 @@ export function heroFx(scene: HeroScene): ClientKit {
   function aura(client: Client, id: string, who: Vec3, now: number) {
     void now;
     const R = POWERS.aura.radius;
-    for (let i = 0; i < 3; i++) {
+    const B = beams!;
+    // A dark haze on the ground round him, rising.
+    for (let i = 0; i < 2; i++) {
       const a = Math.random() * Math.PI * 2;
-      const r = rnd(1, R);
-      const at = { x: who.x + Math.cos(a) * r, y: who.y - 1.1 + Math.random() * 0.4, z: who.z + Math.sin(a) * r };
-      client.fx.particles(at, [0.18, 0.02, 0.3], { count: 1, speed: 0.2, size: 0.12, gravity: -1.2, glow: 0.8, life: 0.6, collide: false });
+      const r = rnd(0.6, R);
+      const at = { x: who.x + Math.cos(a) * r, y: who.y - 1.2 + Math.random() * 0.2, z: who.z + Math.sin(a) * r };
+      client.fx.particles(at, [0.1, 0.0, 0.16], { count: 1, speed: 0.15, size: 0.07, gravity: -1.4, glow: 0.6, life: 0.7, collide: false });
     }
+    // Round him, a slow ring of dark sparks.
+    const t = now * 2.2;
+    for (let i = 0; i < 3; i++) {
+      const a = t + (i / 3) * Math.PI * 2;
+      client.fx.particles({ x: who.x + Math.cos(a) * 0.8, y: who.y - 0.4 + Math.sin(t * 1.7 + i) * 0.4, z: who.z + Math.sin(a) * 0.8 }, [0.35, 0.05, 0.7], { count: 1, speed: 0.05, size: 0.04, gravity: 0, glow: 2.5, life: 0.3, collide: false });
+    }
+    // Life drawn out of everyone near: a dark thread from them to him, now and then.
     for (const f of client.figures.all) {
       if (!f.player || f.player === id) continue;
       const p = f.root.getWorldPosition(new V3());
-      const d = Math.hypot(p.x - who.x, p.z - who.z);
-      if (d > R || Math.random() > 0.35) continue;
-      const t = Math.random();
-      client.fx.particles({ x: p.x + (who.x - p.x) * t, y: p.y + 1.1 + (who.y - p.y - 1.1) * t * 0.5, z: p.z + (who.z - p.z) * t }, [0.45, 0.05, 0.6], { count: 1, speed: 0.4, size: 0.06, gravity: 0, glow: 2, life: 0.3, collide: false });
+      if (Math.hypot(p.x - who.x, p.z - who.z) > R || Math.random() > 0.3) continue;
+      const from = { x: p.x + rnd(-0.2, 0.2), y: p.y + rnd(0.8, 1.5), z: p.z + rnd(-0.2, 0.2) };
+      const pts = jag(from, { x: who.x, y: who.y - 0.1, z: who.z }, 0.12);
+      for (let i = 1; i < pts.length; i++) B.line('dark', pts[i - 1], pts[i], 0.018, 0.1, now);
+      client.fx.particles(from, [0.4, 0.05, 0.6], { count: 2, speed: 0.6, size: 0.035, gravity: 0, glow: 2, life: 0.25, collide: false });
     }
   }
 

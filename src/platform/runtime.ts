@@ -2037,7 +2037,8 @@ export class Runtime {
       hand: this.handOf(me, stack),
       // The held gun as its controller has it (the newest frame's hand: what fires, and what the HUD shows).
       held: this.heldGun(me),
-      abilities: {},
+      // Their movement abilities' states as this screen predicts them (what `$ability` binds).
+      abilities: (this.predictor?.abilities ?? me.move.abilities ?? {}) as Me['abilities'],
       quick,
       cooking: c ? { item: c.item, held: c.held, fuse: c.t.cook ? c.t.fuse : 0 } : null,
     };

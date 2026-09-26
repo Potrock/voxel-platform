@@ -20,7 +20,9 @@ const GLYPH: Record<PowerId, string> = {
 };
 
 const CSS = `
-.bfh-hero { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: min(560px, 92vw); pointer-events: none; font-family: var(--sans, system-ui); color: #fff; --blade: #5dff6a; }
+/* While a hero's panel is up it stands in for the hotbar (a saber alone) and the small health bar. */
+body.bfh-on .hotbar, body.bfh-on .healthbar { visibility: hidden; }
+.bfh-hero { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: min(560px, 92vw); pointer-events: none; font-family: var(--sans, system-ui); color: #fff; --blade: #5dff6a; }
 .bfh-hero.off { display: none; }
 .bfh-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .bfh-name { font: 700 17px var(--pixel, 'Arial Black'); letter-spacing: 0.08em; text-transform: uppercase; color: var(--blade); text-shadow: 0 0 10px color-mix(in srgb, var(--blade) 70%, transparent), 0 1px 0 #000; }
@@ -139,6 +141,7 @@ export function heroHud(scene: HeroScene): ClientKit {
       const id = m ? heroByNumber(m.h) : null;
       const show = !!id && !me.dead && !client.replay.playing;
       cls(el!, 'off', !show);
+      cls(document.body, 'bfh-on', show);
       if (!show || !id || !m) {
         hero = null;
         return;
@@ -178,6 +181,9 @@ export function heroHud(scene: HeroScene): ClientKit {
         text(c.st, state === 'cooling' ? `${cool.toFixed(cool < 3 ? 1 : 0)} s` : state === 'on' ? (p.hold ? 'HOLDING' : 'ACTIVE') : p.hold ? 'HOLD ' + p.key.slice(3) : 'READY');
       });
       void scene;
+    },
+    dispose() {
+      document.body.classList.remove('bfh-on');
     },
   };
 }

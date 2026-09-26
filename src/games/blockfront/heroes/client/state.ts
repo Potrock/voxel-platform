@@ -87,6 +87,17 @@ export class HeroScene {
    * (`window.__heroes.debug`, in a development build).
    */
   debug: { swing?: [number, number]; act?: [Act['k'], number]; guard?: boolean } | null = null;
+  /** Development: messages to take next frame as if the server sent them (`window.__heroes.inject`). */
+  private injected: [string, unknown][] = [];
+  inject(name: string, data: unknown) {
+    this.injected.push([name, data]);
+  }
+  /** This frame's injected messages, taken. */
+  takeInjected(): [string, unknown][] {
+    const out = this.injected;
+    this.injected = [];
+    return out;
+  }
 
   /** A lasting power of theirs, on now. */
   on(id: string, k: 'soresu' | 'rage' | 'aura' | 'lightning' | 'choke'): boolean {
@@ -272,6 +283,7 @@ export function heroState(scene: HeroScene): ClientKit {
         if (e.t === 'reset') scene.clear();
         else if (e.t === 'message' && e.name.startsWith('bfh.')) scene.hear(e.name, e.data);
       }
+      for (const [name, data] of scene.takeInjected()) scene.hear(name, data);
     },
   };
 }

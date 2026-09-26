@@ -16,13 +16,13 @@ const OUT = join(HERE, '../../heroes/models');
 
 /** The beams, by name: their colour (sRGB). They glow fully (the emissive map at its brightest). */
 const BEAMS = {
-  lightning: 0xd6ccff,
+  lightning: 0x8f7cff,
   green: 0x7dff8a,
   blue: 0x7fd4ff,
   red: 0xff4a3a,
   crimson: 0xff3a6e,
   white: 0xffffff,
-  dark: 0x9a3cff,
+  dark: 0x7a1cff,
 };
 
 function beam(name, rgb) {

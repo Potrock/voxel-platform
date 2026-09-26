@@ -39,6 +39,8 @@ interface Held {
   b: Vec3;
   /** Seconds the move takes (the pull, the lift); after that they're held there. */
   move: number;
+  /** A choke's harm not dealt yet (it's dealt in pulses). */
+  owed: number;
 }
 
 /** A saber thrown: out along `dir` to `dist`, and back to the hand. */
@@ -227,7 +229,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       const fz = -Math.cos(p.yaw);
       const to = { x: p.position.x + fx * P.lands, y: p.position.y, z: p.position.z + fz * P.lands };
       const stun = rules.heroOf(t) ? P.heroStun : P.stun;
-      held.set(t.id, { by: p, kind: 'pull', from: now(), until: now() + P.time + stun, a: { ...t.position }, b: to, move: P.time });
+      held.set(t.id, { by: p, kind: 'pull', from: now(), until: now() + P.time + stun, a: { ...t.position }, b: to, move: P.time, owed: 0 });
       t.freeze(true, { weapons: true });
       hurt(t, P.damage * heroScale(t), p, FORCE.pull);
       send({ p: p.id, k: 'pull', target: t.id, t: P.time + stun });
@@ -265,7 +267,7 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       if (g.choking) return false;
       const t = aimed(p, P.range);
       if (!t) return false;
-      held.set(t.id, { by: p, kind: 'choke', from: now(), until: now() + P.time, a: { ...t.position }, b: { x: t.position.x, y: t.position.y + P.lift, z: t.position.z }, move: P.rise });
+      held.set(t.id, { by: p, kind: 'choke', from: now(), until: now() + P.time, a: { ...t.position }, b: { x: t.position.x, y: t.position.y + P.lift, z: t.position.z }, move: P.rise, owed: 0 });
       t.freeze(true, { weapons: true });
       g.choking = t.id;
       setActive(p, slot, P.time);
@@ -443,7 +445,14 @@ export function setupPowers(game: GameContext, rules: PowerRules): Powers {
       if (h.kind === 'pull') at.y += Math.sin(Math.min(1, t) * Math.PI) * 0.8;
       v.teleport(at);
     } else if (h.kind === 'choke') v.teleport(h.b);
-    if (h.kind === 'choke') hurt(v, POWERS.choke.dps * dt * (rules.heroOf(v) ? 0.4 : 1), by, FORCE.choke);
+    // A choke's harm in pulses, four a second.
+    if (h.kind === 'choke') {
+      h.owed += POWERS.choke.dps * dt * (rules.heroOf(v) ? 0.4 : 1);
+      if (h.owed >= POWERS.choke.dps * 0.25 || now() + dt >= h.until) {
+        hurt(v, h.owed, by, FORCE.choke);
+        h.owed = 0;
+      }
+    }
   };
 
   // The movement abilities' powers: Luke's rush (cutting through), his leap and its landing, and
