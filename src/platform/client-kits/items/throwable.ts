@@ -98,7 +98,9 @@ export function throwables(): ClientKit {
       const slots = me.hotbar?.slots ?? [];
       const held = me.hotbar ? (slots[me.hotbar.selected]?.item ?? null) : null;
       const eye = { x: me.position.x, y: me.position.y + (me.crouching && !me.flying ? 1.27 : 1.62), z: me.position.z };
-      const made = ctl!.update(dt, { active: c.active, isDown: (k) => c.isDown(k), fire: c.button(0) }, slots, held, taken, eye, c.yaw, c.pitch, (item) => client.emit({ t: 'cook', item }));
+      // Dead with one cooked: it drops where they fell, still live. Otherwise the controls cook and
+      // throw (dead, they're idle: nothing cooks, and a key still held counts afresh).
+      const made = (c.dead ? ctl!.drop(eye) : null) ?? ctl!.update(dt, { active: c.active, isDown: (k) => c.isDown(k), fire: c.button(0) }, slots, held, taken, eye, c.yaw, c.pitch, (item) => client.emit({ t: 'cook', item }));
       // (The hand's on it: the gun after this waits.)
       if (ctl!.cooking || ctl!.tossed) c.consume(0);
       if (!made) return;
@@ -108,7 +110,7 @@ export function throwables(): ClientKit {
       // It flies here at once, on the path the host will fly it on (the client code draws it leaving the hand).
       const key = `${me.id}:${made.serial}`;
       if (flights!.add(key, made.item, made.from, made.v, fuseSteps(throwable(def), made.cooked), true)) client.emit({ t: 'thrown', key, item: made.item, mine: true });
-      client.emit({ t: 'toss' });
+      if (!c.dead) client.emit({ t: 'toss' });
     },
     frame(client, dt) {
       start(client);
