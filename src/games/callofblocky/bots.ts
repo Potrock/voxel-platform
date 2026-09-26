@@ -49,6 +49,8 @@ export interface Bots extends ShooterBots {
   rules: BotRules | null;
   /** The ammo bags lying about: a bot low on rounds goes for the nearest. */
   supplies: AmmoBags | null;
+  /** Whether someone's up in a chopper (off the ground: nobody's target). */
+  aloft: ((p: Player) => boolean) | null;
 }
 
 /**
@@ -61,7 +63,8 @@ export function makeBots(game: GameContext, nav: () => NavGrid | null, hotspots:
       nav,
       hotspots,
       weapons: WEAPONS,
-      hostile: (bot, other) => bots.rules?.hostile(bot, other) ?? true,
+      // (Nobody's after someone up in a chopper: they shoot up at the chopper, `streaks`.)
+      hostile: (bot, other) => !bots.aloft?.(other) && (bots.rules?.hostile(bot, other) ?? true),
       goal: (bot, mind) => {
         if (bots.rules) {
           const g = bots.rules.goal(bot, mind);
@@ -90,7 +93,7 @@ export function makeBots(game: GameContext, nav: () => NavGrid | null, hotspots:
         return throwables.of(game)?.throw(bot, item, { at, cook: item === 'frag' ? mind.skill * 1.4 : 0 }) ?? false;
       },
     }),
-    { objective: null as Vec3 | null, rules: null as BotRules | null, supplies: null as AmmoBags | null },
+    { objective: null as Vec3 | null, rules: null as BotRules | null, supplies: null as AmmoBags | null, aloft: null as ((p: Player) => boolean) | null },
   );
   return bots;
 }

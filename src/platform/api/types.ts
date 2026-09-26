@@ -33,6 +33,13 @@ export interface GameMeta {
   tagline?: string;
   /** Accent colour for the launcher card (CSS colour). */
   accent?: string;
+  /**
+   * The launcher card's picture, 16:9 (about 960×540, a WebP or JPEG under 100 KB): a shot of the
+   * game that reads as it at a glance, with no HUD and no title (the launcher writes the title over
+   * its lower left). `import cover from './cover.webp?url'`, then `cover`. It also shows, blurred,
+   * behind the home page while the game's world loads.
+   */
+  cover?: string;
   /** Control hints for the title screen, e.g. `[['LMB', 'attack']]` (movement keys are always shown). */
   controls?: [string, string][];
   /**

@@ -15,10 +15,13 @@ import { STREAK_IDS, STREAKS, type StreakId } from './kinds';
  * (free-for-all and Team Deathmatch). Earned ones wait until called in with 5 (a controller's
  * D-pad left), the latest first, and last until the match is over.
  *
- * Calling one in puts the fighter's controls and camera in it (`drive(..., { remote: true })`:
- * `flight.ts` flies it, predicted on their screen) while their body stays where it stood, frozen,
- * for anyone to shoot; killed, they lose it. Bots call theirs in when the coast is clear and fly
- * them with controls of their own (`PilotControls`), the server stepping them.
+ * Calling one in puts the fighter's controls and camera in it (`flight.ts` flies it, predicted on
+ * their screen). A Hellstorm is steered from afar (`drive(..., { remote: true })`): their body
+ * stays where it stood, frozen, for anyone to shoot; killed, they lose it. A chopper's pilot is up
+ * in it (`drive`): off the ground, out of harm's way and nobody's target until it's over (shot down
+ * or gone home), when they're back where they called it in. Bots call theirs in when the coast is
+ * clear and fly them with controls of their own (`PilotControls`), the server stepping them (a
+ * bot's body rides in its chopper).
  *
  * - **Hellstorm**: from high over the map it falls toward it; it goes off on the first thing it
  *   meets (or on anyone it passes close to) in a blast that takes out anyone within five blocks or
@@ -74,7 +77,8 @@ interface Flight {
   fired: number;
   hp: number;
   spin: number;
-  /** Where the pilot was looking when they called it in (given back after). */
+  /** Where the pilot stood and was looking when they called it in (given back after). */
+  from: Vec3;
   look: { yaw: number; pitch: number };
   /** Next rotor or whoosh sound, by the game's clock. */
   sound: number;
@@ -277,6 +281,7 @@ export class Streaks {
       fired: 0,
       hp: CHOPPER_HP,
       spin: 0,
+      from: { x: p.position.x, y: p.position.y, z: p.position.z },
       look: { yaw: p.yaw, pitch: p.pitch },
       sound: 0,
       marks: new Map(),
@@ -284,15 +289,18 @@ export class Streaks {
       shownHp: 1,
       done: false,
     };
-    // Their body stays where it is, frozen, their weapons down.
+    // Their body frozen, their weapons down: where it stands (a Hellstorm), or up in the chopper,
+    // where nothing can hurt it.
     p.freeze(true, { weapons: true });
+    if (kind === 'chopper') p.protect(CHOPPER.life + 60);
     if (p.bot) {
       fl.ai = new PilotControls();
       fl.skill = this.hooks.bots.mind(p)?.skill ?? 0.5;
       this.hooks.bots.remove(p);
       (kind === 'hellstorm' ? missileVehicle : chopperVehicle).pose(state as never, prop.position, prop.quaternion);
+      if (kind === 'chopper') this.aboard(fl);
     } else {
-      const v = p.drive(kind, state, { prop, remote: true });
+      const v = p.drive(kind, state, { prop, remote: kind === 'hellstorm' });
       fl.state = v.state;
       p.hud.crosshair(false);
       g.clients.send(p, 'cob.streak', { kind, life: kind === 'chopper' ? CHOPPER.life : MISSILE.life, floor });
@@ -340,10 +348,23 @@ export class Streaks {
       p.hud.crosshair(true);
       g.clients.send(p, 'cob.streak', null);
     }
+    // Back where they called it in (from the chopper, down out of it).
+    if (fl.kind === 'chopper') p.protect(0);
     if (p.alive) {
       p.freeze(false);
-      p.teleport(p.position, fl.look.yaw, fl.look.pitch);
+      p.teleport(fl.from, fl.look.yaw, fl.look.pitch);
     }
+  }
+
+  /** Whether they're up in a chopper (off the ground: nobody's target). */
+  aloft(p: Player): boolean {
+    return this.flights.some((x) => x.pilot === p && x.kind === 'chopper');
+  }
+
+  /** A bot's body rides in its chopper, in the cabin (a person's goes with the vehicle they drive). */
+  private aboard(fl: Flight) {
+    const s = fl.state as ChopperState;
+    fl.pilot.teleport({ x: s.x, y: s.y - 0.9, z: s.z });
   }
 
   /** The pilot died, or left: theirs is over (a chopper flies off without them). */
@@ -376,6 +397,7 @@ export class Streaks {
       const def = fl.kind === 'hellstorm' ? missileVehicle : chopperVehicle;
       def.step(fl.state as never, fl.ai, dt, this.game.world);
       def.pose(fl.state as never, fl.prop.position, fl.prop.quaternion);
+      if (fl.kind === 'chopper') this.aboard(fl);
     }
     if (fl.kind === 'hellstorm') this.missile(fl);
     else this.chopper(fl, dt);

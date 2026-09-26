@@ -51,7 +51,9 @@ import type { PlayerFrame } from './sim/player';
 import { MESSAGE_MAX, newRoomCode, ROOM_CODE, type DevReply, type HostBatch, type TimedBatch } from './net/protocol';
 import { sanitizeGameMessage } from './net/validate';
 import { clipFrame, type ClipFrame } from './sim/entities';
-import { Inventory as BlockPicker, PauseMenu, TitleScreen } from './ui/screens';
+import { Inventory as BlockPicker } from './ui/screens';
+import { TitleScreen } from './ui/home';
+import { PauseMenu } from './ui/pause';
 import { blockIcon } from './ui/icons';
 import { GRAPHICS, loadSettings, saveSettings, toRenderSettings, type Settings } from './settings';
 import { AutoQuality, savedQuality, saveQuality, type Look } from './quality';
@@ -574,7 +576,22 @@ export class Runtime {
     this.gameHud.setVisible(false);
     this.held.visible = false;
 
-    this.pause = new PauseMenu(this.ui, this.settings, this.input.keysFor, (s) => this.applySettings(s), () => this.input.lock());
+    // The pause menu offers restarting and the world's clock only where the server takes them: in
+    // a game of the player's own (the public game is everyone's), or on a development server (the
+    // clock only where the game doesn't fix the time).
+    const theirs = this.room !== null || import.meta.env.DEV;
+    const pauseGame = {
+      title: def.title,
+      accent: def.accent,
+      room: this.room,
+      instances: def.instances,
+      restart: theirs,
+      clock: !def.world?.freezeTime && theirs,
+      controls: def.controls,
+      walks: this.walker,
+      keys: { bound: this.settings.keys, game: this.input.keysFor },
+    };
+    this.pause = new PauseMenu(this.ui, this.settings, pauseGame, this.input.keysFor, (s) => this.applySettings(s), () => this.input.lock());
     this.pause.onTime = (t) => this.link.send({ t: 'env', time: t });
     this.pause.onRestart = () => {
       this.pause.hide();
@@ -879,6 +896,7 @@ export class Runtime {
       this.frameData = b.frame;
       // In a room of a player's own, the home page says who's in it.
       if (this.room && this.mode === 'title') this.title.present(b.frame.players.map((p) => p.name));
+      if (this.mode === 'paused') this.pause.setPlayers(b.frame.players.map((p) => ({ name: p.name, bot: p.bot, me: p.id === this.playerId })));
       this.playback.push(b.frame, (b as TimedBatch).time);
       const me = this.playerId !== null ? b.frame.players.find((p) => p.id === this.playerId) : undefined;
       // Prediction starts again from this frame: its solid props too.
@@ -915,7 +933,7 @@ export class Runtime {
     });
   }
 
-  /** Back to the home page (this game's, fresh; the same room): `game.exit()`, the pause menu's Switch game. */
+  /** Back to the home page (this game's, fresh; the same room): `game.exit()`, the pause menu's Leave game. */
   exit() {
     this.switchGame(this.def.id, this.room);
   }
@@ -1041,12 +1059,18 @@ export class Runtime {
       this.mode = 'playing';
     } else if (this.mode === 'playing' && !this.gameHud.screenOpen) {
       this.mode = 'paused';
+      this.pause.setPlayers((this.frameData?.players ?? []).map((p) => ({ name: p.name, bot: p.bot, me: p.id === this.playerId })));
       this.pause.show(this.frameData?.time ?? 0);
     }
   }
 
   private onKey(code: string, e?: KeyboardEvent) {
     if (this.mode === 'console') return;
+    // Paused, Escape steps back out of the settings (the browser keeps it from resuming: a click does).
+    if (code === 'Escape' && this.mode === 'paused') {
+      this.pause.back();
+      return;
+    }
     // Playing with a controller there's no pointer lock for Esc to leave: it pauses here.
     if (code === 'Escape' && this.mode === 'playing' && this.input.padCaptured && !this.gameHud.screenOpen) {
       this.input.unlock();
@@ -1093,13 +1117,14 @@ export class Runtime {
     if (this.mode === 'console') return;
     const back = () => {
       if (this.gameHud.back()) return;
-      if (this.mode === 'paused') this.input.lock();
+      if (this.mode === 'paused' && !this.pause.back()) this.input.lock();
       else if (this.mode === 'picker') this.closePicker();
     };
     if (a === 'pause') {
       if (this.mode === 'playing' && this.input.locked && !this.gameHud.screenOpen) this.input.unlock();
       else if (this.mode === 'title') this.play();
       else if (this.mode === 'playing' && !this.gameHud.screenOpen) this.input.lock();
+      else if (this.mode === 'paused') this.input.lock();
       else back();
       return;
     }
