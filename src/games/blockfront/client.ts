@@ -20,8 +20,11 @@ import { shared } from './shared';
  * `client/ambience.ts`), then its own look: each weapon's model, icon, hold and bolt
  * (`client/looks.ts`), and its voices (`client/sounds.ts`).
  */
+/** The first-person view (the platform's kit): a hero's own screen swings its arm with the saber at once (`heroes/client`). */
+const fp = new firstPerson.FirstPersonKit();
+
 export default defineClient(shared, {
-  kits: [...sounds.standard(), ...firstPerson.standard(), ...heroKits() /* the figures (heroes' sabers and powers too), the heroes' effects and HUD: heroes/client */, blasterHud(), hud.throwables(), vitals(), bolts(), effects.throwables(), detonatorBlast(), ambience()],
+  kits: [...sounds.standard(), fp, ...heroKits({ firstPerson: fp }) /* the figures (heroes' sabers and powers too), the heroes' effects and HUD: heroes/client */, blasterHud(), hud.throwables(), vitals(), bolts(), effects.throwables(), detonatorBlast(), ambience()],
   setup(client) {
     defineLooks(client);
     defineSounds(client);
