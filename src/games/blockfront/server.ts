@@ -663,7 +663,7 @@ function matchMenu(game: GameContext, p: Player) {
 export default defineServer(shared, {
   // Its kinds of item: thermal detonators (first: one being cooked takes the fire button), blasters, sabers
   // (the heroes', `heroes/saber.ts`).
-  items: [throwables(), guns({ fireStopsSprint: true }), melee({ fist: false }), ...heroItems()],
+  items: [throwables(), guns(), melee({ fist: false }), ...heroItems()],
   setup(game) {
     match.fighters = fighters = new Map();
     match.phase = 'playing';

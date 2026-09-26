@@ -1,5 +1,5 @@
 import { defineClient } from '@platform/client';
-import { effects, firstPerson, hud, sounds } from '@platform/client/kits';
+import { effects, firstPerson, hud, items, sounds } from '@platform/client/kits';
 import { ambience } from './client/ambience';
 import { blasterHud } from './client/blaster-hud';
 import { bolts } from './client/bolts';
@@ -11,7 +11,8 @@ import { vitals } from './client/vitals';
 import { shared } from './shared';
 
 /**
- * Blockfront II on each player's screen: the kits it uses, the platform's and its own (the standard
+ * Blockfront II on each player's screen: the kits it uses, the platform's and its own (its
+ * detonators and blasters, thrown and fired here at once as its server plays them; the standard
  * voices, first person for those who'd rather, the troopers' figures; the blaster's heat and
  * crosshair, over the shoulder or through the eyes: `client/blaster-hud.ts`; the detonators' HUD;
  * the edges reddening at low health: `client/vitals.ts`; blaster bolts flying and landing:
@@ -21,7 +22,7 @@ import { shared } from './shared';
  * (`client/looks.ts`), and its voices (`client/sounds.ts`).
  */
 export default defineClient(shared, {
-  kits: [...sounds.standard(), ...firstPerson.standard(), ...heroKits() /* the figures (heroes' sabers and powers too), the heroes' effects and HUD: heroes/client */, blasterHud(), hud.throwables(), vitals(), bolts(), effects.throwables(), detonatorBlast(), ambience()],
+  kits: [items.throwables(), items.guns(), ...sounds.standard(), ...firstPerson.standard(), ...heroKits() /* the figures (heroes' sabers and powers too), the heroes' effects and HUD: heroes/client */, blasterHud(), hud.throwables(), vitals(), bolts(), effects.throwables(), detonatorBlast(), ambience()],
   setup(client) {
     defineLooks(client);
     defineSounds(client);

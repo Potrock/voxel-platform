@@ -1,4 +1,5 @@
-import type { GunItem, Vec3 } from '@platform';
+import type { Vec3 } from '@platform';
+import type { GunItem } from '@platform/items';
 import type { Client, ClientKit, Node } from '@platform/client';
 import { Color, Quat, Vec3 as V3 } from '@platform/client/math';
 import { HEROES, saberOf, type HeroId } from '../defs';
