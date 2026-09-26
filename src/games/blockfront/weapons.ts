@@ -3,8 +3,8 @@ import type { Team } from './teams';
 
 /**
  * The troopers' arsenal: blasters (the platform's guns, `kind: 'gun'`) and the thermal detonator
- * (a throwable). Numbers are tuned for 100 health: a blaster rifle takes five body hits, the heavy
- * repeater seven, the cycler rifle one to the head and two to the body, a blaster pistol three.
+ * (a throwable). Numbers are tuned for 100 health: a blaster rifle takes five or six body hits, the
+ * heavy repeater eight, the cycler rifle one to the head and two to the body, a blaster pistol three.
  *
  * **Heat, not magazines.** A blaster doesn't run dry: it heats up. Its `magazine` is how many
  * shots it takes to overheat; the reserve never runs out; its `reload` is venting (R vents early;
@@ -25,7 +25,7 @@ const rifle: Omit<GunItem, 'name'> = {
   kind: 'gun',
   auto: true,
   rpm: 400,
-  damage: [24, 17],
+  damage: [20, 14],
   falloff: [24, 60],
   headshot: 1.5,
   magazine: 26,
@@ -43,7 +43,7 @@ const heavy: Omit<GunItem, 'name'> = {
   kind: 'gun',
   auto: true,
   rpm: 720,
-  damage: [16, 11],
+  damage: [13, 9],
   falloff: [16, 42],
   headshot: 1.4,
   magazine: 70,
@@ -79,7 +79,7 @@ const sniper: Omit<GunItem, 'name'> = {
 const pistol: Omit<GunItem, 'name'> = {
   kind: 'gun',
   rpm: 330,
-  damage: [38, 24],
+  damage: [34, 22],
   falloff: [14, 36],
   headshot: 1.6,
   magazine: 12,

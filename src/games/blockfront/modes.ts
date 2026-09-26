@@ -23,7 +23,7 @@ export interface Mode {
 }
 
 export const MODES: Record<ModeId, Mode> = {
-  conquest: { id: 'conquest', name: 'Conquest', goal: 'Hold the command posts and run the other side out of reinforcements', side: 10, tickets: 150, posts: true, heroes: false, time: 16 * 60 },
+  conquest: { id: 'conquest', name: 'Conquest', goal: 'Hold the command posts and run the other side out of reinforcements', side: 10, tickets: 250, posts: true, heroes: false, time: 16 * 60 },
   hvv: { id: 'hvv', name: 'Heroes vs Villains', goal: 'Heroes only, three a side: the first side to run the other out of lives wins', side: 3, tickets: 20, posts: false, heroes: true, time: 10 * 60 },
 };
 

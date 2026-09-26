@@ -12,7 +12,8 @@ import { other, type Team } from './teams';
  *   half; more go faster (up to `CROWD` times). Both sides in it: it's contested, and holds. Left
  *   alone, it settles back to whoever holds it. A side's base (`locked`) can't be taken.
  * - **Tickets.** Each side starts with `TICKETS` reinforcements. Every death costs one. Every
- *   `BLEED` seconds, the side holding fewer posts loses the difference. Out of tickets, it loses.
+ *   `BLEED` seconds, a side holding most of the posts worth fighting over (the bases aside) takes one
+ *   ticket from the other, and holding all of them, `ALL_HELD`. Out of tickets, a side loses.
  */
 
 export const TICKETS = 150;
@@ -22,7 +23,9 @@ export const CAPTURE = 8;
 const CROWD = 2.5;
 /** Seconds for an empty post to settle back to its holder. */
 const SETTLE = 12;
-export const BLEED = 5;
+export const BLEED = 6;
+/** Tickets a bleed takes when one side holds every post worth fighting over. */
+const ALL_HELD = 2;
 /** How far below a post's feet level still counts as in it. */
 const BELOW = 1.5;
 
@@ -99,14 +102,17 @@ export class Conquest {
         post.control = post.control < home ? Math.min(home, post.control + step) : Math.max(home, post.control - step);
       }
     }
-    // The bleed.
+    // The bleed: the posts worth fighting over (not the bases). Holding most of them wears the other
+    // side down slowly; holding them all, fast.
     const now = this.game.clock.now;
     if (now >= this.bleedAt) {
       this.bleedAt = now + BLEED;
-      const h = [this.held(0).length, this.held(1).length];
-      if (h[0] !== h[1]) {
-        const loser: Team = h[0] < h[1] ? 0 : 1;
-        match.tickets[loser] = Math.max(0, match.tickets[loser] - Math.abs(h[0] - h[1]));
+      const open = match.posts.filter((p) => !p.spec.locked);
+      const h = [open.filter((p) => p.owner === 0).length, open.filter((p) => p.owner === 1).length];
+      const leader: Team | null = h[0] > h[1] && h[0] * 2 > open.length ? 0 : h[1] > h[0] && h[1] * 2 > open.length ? 1 : null;
+      if (leader !== null) {
+        const loser = other(leader);
+        match.tickets[loser] = Math.max(0, match.tickets[loser] - (h[leader] === open.length ? ALL_HELD : 1));
       }
     }
     return news;

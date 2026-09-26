@@ -41,6 +41,8 @@ const HEROES_A_SIDE = 2;
 const BP = { kill: 100, headshot: 25, hero: 250, capture: 200, neutralise: 80 };
 /** How long after spawning a pick in the menu still changes what they carry now. */
 const REARM = 4;
+/** Seconds of protection spawning at their side's base. */
+const BASE_PROTECT = 3;
 /** The third-person camera: over the right shoulder, a few blocks back. */
 const SHOULDER = { distance: 3.6, shoulder: { right: 0.95, up: 0.42 } };
 
@@ -233,7 +235,8 @@ function spawn(game: GameContext, f: Fighter) {
     arm(f);
   }
   p.health = p.maxHealth;
-  p.protect(1.5);
+  // Longer at their base: a side pushed back to it isn't cut down coming out of the door.
+  p.protect(post.spec.locked ? BASE_PROTECT : 1.5);
   f.diedAt = -1;
   f.spawnedAt = game.clock.now;
   f.menu?.close();
@@ -836,8 +839,10 @@ export default defineServer(shared, {
       if (!p.alive) {
         if (f.diedAt < 0) f.diedAt = now;
         if (now - f.diedAt >= RESPAWN) {
-          // Bots who've earned a hero take one now and then.
-          if (p.bot && !f.wantHero && game.rng.next() < 0.65) {
+          // Bots who've earned a hero take one now and then: on a side with people, only while
+          // a hero's place is left over for them too.
+          const people = teamFighters(f.team).some((o) => !o.player.bot);
+          if (p.bot && !f.wantHero && !heroMode() && heroesUp(f.team) < (people ? HEROES_A_SIDE - 1 : HEROES_A_SIDE) && game.rng.next() < 0.65) {
             const free = HERO_IDS.filter((id) => HEROES[id].team === f.team && !heroRefusal(f, id));
             if (free.length) f.wantHero = free[game.rng.int(0, free.length - 1)];
           }

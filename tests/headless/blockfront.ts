@@ -48,7 +48,7 @@ export default function blockfront() {
   check(shots > 200, `bots hardly fired (${shots} shots)`);
   check(deaths >= 10, `bots should kill each other (${deaths} deaths)`);
   check(captures() >= 1, 'a post should change hands');
-  check(match.tickets[0] < 150 && match.tickets[1] < 150, 'tickets should drain');
+  check(match.tickets[0] < match.mode.tickets && match.tickets[1] < match.mode.tickets, 'tickets should drain');
   check(cooled > 0, 'blasters should cool');
 
   // Heroes vs Villains: three heroes a side, nothing but heroes.
