@@ -1001,6 +1001,30 @@ function town() {
 // The streets' furniture: cover along the lanes, vaporators, lamps, speeders
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Cloth strung across a lane, over head height, from the wall on one side to the one on the
+ * other: along z at column x (from z0 to z1, the lane's width) or along x at row z. Only where
+ * there's a wall to tie it to at both ends.
+ */
+function bunting(along: 'x' | 'z', at: number, from: number, to: number, k: number) {
+  const y = FLOOR + 4;
+  const cell = (i: number): [number, number] => (along === 'z' ? [at, i] : [i, at]);
+  const solid = (i: number) => {
+    const [x, z] = cell(i);
+    const b = bp.get(x, y, z);
+    return b !== undefined && b !== 'air' && !(typeof b === 'string' && b.startsWith('awning'));
+  };
+  let a = from;
+  let b = to;
+  while (a > from - 3 && !solid(a - 1)) a--;
+  while (b < to + 3 && !solid(b + 1)) b++;
+  if (!solid(a - 1) || !solid(b + 1)) return;
+  for (let i = a; i <= b; i++) {
+    const [x, z] = cell(i);
+    set(x, y, z, AWNINGS[(((i + k) % 3) + 3) % 3]);
+  }
+}
+
 /** A wall across part of a street, two high: cover, and a break in the view down it. */
 function barrier(x0: number, z0: number, x1: number, z1: number) {
   fill(x0, FLOOR, z0, x1, FLOOR + 1, z1, (x, y, z) => (y === FLOOR ? 'plaster_grime' : (x + z) % 4 === 0 ? 'adobe_window' : 'adobe'));
@@ -1048,6 +1072,19 @@ function streets() {
   props.crates(bp, 68, FLOOR, -43, 2, 2, 2, 40);
   props.landspeeder(at(51, -44, 2), 0, FLOOR, 0, 'white_concrete');
   props.drums(bp, 29, FLOOR, -43, 3, 41);
+  // Cloth strung across the alleys (and their half-turned twins).
+  for (const x of [-84, -71, -52, -36, -18]) {
+    bunting('z', x, -30, -25, x);
+    bunting('z', -x, 25, 30, x);
+  }
+  for (const x of [-76, -58, -30]) {
+    bunting('z', x, 40, 45, x);
+    bunting('z', -x, -45, -40, x);
+  }
+  for (const x of [-53, -43, -34]) {
+    bunting('z', x, -14, -12, x);
+    bunting('z', -x, 12, 14, x);
+  }
   // The squares north and south of the bay: a water tank on stilts, a speeder, cargo.
   props.waterTank(bp, -8, FLOOR, -39);
   props.landspeeder(at(5, -38, 1), 0, FLOOR, 0, 'orange_concrete');
@@ -1277,8 +1314,9 @@ export const SPACEPORT: MapSpec = {
   terraform: TERRAFORM,
   bounds: { min: { x: WEST, y: PIT - 1, z: NORTH }, max: { x: EAST, y: FLOOR + 12, z: SOUTH } },
   posts: POSTS,
-  // From over the square north of the bay, looking south across it to the wreck beyond the canyon.
-  home: spawnAt(5, FLOOR + 20, -45, -5, 30),
+  // Over the square north of the bay (the home page's camera circles here), first looking south
+  // across the bay to the wreck beyond the canyon.
+  home: spawnAt(-2, FLOOR + 22, -36, 0, 20),
   overview: { position: { x: 20, y: FLOOR + 55, z: -80 }, target: { x: -5, y: FLOOR, z: 10 } },
   hotspots: [...POSTS.map((p) => ({ ...p.at })), { x: -44, y: FLOOR, z: 0 }, { x: 44, y: FLOOR, z: 0 }, { x: 0, y: FLOOR, z: -36 }, { x: 0, y: FLOOR, z: 36 }],
 };
