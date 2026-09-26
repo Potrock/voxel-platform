@@ -417,6 +417,12 @@ if (s.left > 0) {
 - While it's on, the wheel zooms rather than changing hotbar slots; the number keys still select slots.
 - `orbit(null)` puts them back in first person. Skyship turns it on at the helm: `p.camera.orbit(ship, { offset: { x: 0.5, y: 8, z: -2 }, max: 70 })`.
 
+**A third-person shooter.** Circling a player straight behind their eyes, their own head sits in the middle of the screen. `shoulder: { right, up }` moves the camera that far across and up the view from there (short of a wall), so their figure stands to one side and the middle of the screen is clear. Their eyes aren't on the camera's line any more, so their aim converges: each frame their screen finds the first block or body under the middle of the screen (at least a couple of blocks past their eyes) and turns their look from their eyes to it. That look is what their controls send, so whatever aims by it (guns and their lag compensation, throws, blades, `player.look`, their figure's head) goes where the crosshair is, online as well. `wheel: false` keeps the mouse wheel for the hotbar and the camera at `distance` (give `min` and `max` the same to hold it there). Blockfront plays over the shoulder, and V goes through the eyes and back:
+
+```ts
+p.camera.orbit(p, { distance: 3.6, min: 3.6, max: 3.6, shoulder: { right: 0.95, up: 0.42 }, wheel: false });
+```
+
 ## Players and multiplayer
 
 Games are written so the same code works with one player or many:

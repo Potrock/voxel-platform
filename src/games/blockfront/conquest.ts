@@ -60,9 +60,10 @@ export class Conquest {
     return match.posts.filter((p) => p.owner === team);
   }
 
-  /** One step: who's in each post, which way it goes, the bleed. Returns what changed hands. */
+  /** One step: who's in each post, which way it goes, the bleed. Returns what changed hands. In a mode without posts to fight over, nothing moves. */
   update(dt: number): PostNews[] {
     const news: PostNews[] = [];
+    if (!match.mode.posts) return news;
     const living = [...match.fighters.values()].filter((f) => f.player.alive);
     for (const post of match.posts) {
       const inside = living.filter((f) => this.inside(post, f.player));

@@ -50,4 +50,21 @@ export default function blockfront() {
   check(captures() >= 1, 'a post should change hands');
   check(match.tickets[0] < 150 && match.tickets[1] < 150, 'tickets should drain');
   check(cooled > 0, 'blasters should cool');
+
+  // Heroes vs Villains: three heroes a side, nothing but heroes.
+  const hv = launch('blockfront', { seed: 4, radius: 6, cheats: true });
+  hv.ctx.commands.run('/mode hvv');
+  let hvDeaths = 0;
+  hv.ctx.events.on('playerDeath', () => hvDeaths++);
+  let allHeroes = true;
+  hv.run(60, {
+    pilot: () => null,
+    until: () => {
+      for (const f of match.fighters.values()) if (f.player.alive && !f.hero) allHeroes = false;
+      return false;
+    },
+  });
+  console.log(`  Heroes vs Villains: ${hv.ctx.players.length} fighters, ${hvDeaths} deaths in 60 s, tickets ${match.tickets.join(' / ')}`);
+  check(hv.ctx.players.length === 6, `expected 6 heroes, got ${hv.ctx.players.length}`);
+  check(allHeroes, 'everyone alive should be a hero');
 }
