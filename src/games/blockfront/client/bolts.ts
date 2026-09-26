@@ -151,6 +151,15 @@ function ownMuzzle(client: Client): Vec3 | null {
   return { x: p.x, y: p.y, z: p.z };
 }
 
+/**
+ * A blaster bolt flying from `from` to `to` in `color`, as the kit draws them, for other client
+ * code (a saber sending one back): `item` picks its kind by its id's end (`rifle`, `heavy`,
+ * `sniper`, `pistol`).
+ */
+export function drawBolt(client: Client, from: Vec3, to: Vec3, color: string, item = 'rifle') {
+  bolt(client, from, to, color, styleOf(item));
+}
+
 /** A bolt: a wide glow deep in its colour round a thin white-hot core, flying together. */
 function bolt(client: Client, from: Vec3, to: Vec3, color: string, style: BoltStyle) {
   client.fx.tracer(from, to, color, { speed: style.speed, length: style.length, width: style.width, glow: 2.4 });
