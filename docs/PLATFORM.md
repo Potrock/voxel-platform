@@ -69,6 +69,15 @@ src/games/
     hud.css hud.ts      its HUD: the comic-book theme (hud.theme.css), its corner widget, the team modes' bar
     progression.ts      XP, levels 1 to 30 and what they unlock, kept by name (game.store); the loadout's locks
     client/progression.ts  the XP bar, the ticker of gains, level-ups and the match's XP: a client kit of its own
+  blockfront/           Blockfront II: Rebels against the Empire, third person, over the command posts of a desert spaceport
+    server.ts           rules: sides, classes, spawning at posts, battle points and heroes, the deploy menu, the HUD calls
+    conquest.ts         the posts (taken by standing in them) and the tickets (deaths and the bleed); modes.ts: Conquest, Heroes vs Villains
+    weapons.ts          blasters (kind 'gun', their magazine the heat: they overheat and cool) and the thermal detonator
+    heroes/             the heroes: a saber item kind of its own (combos, the guard that deflects bolts), eleven Force
+                        powers, hero bots; client/: the figures kit copied and taught saber stances and Force poses,
+                        the powers' effects, the hero HUD
+    client/             bolts you can watch fly, the third-person crosshair and heat, voices, ambience; skies.ts: fighters overhead
+    maps/ tools/        Mos Blockley Spaceport as Blueprints; the voxel troopers, heroes and weapons built in code
   obby/                 Sky Obby: a parkour course in the void, each player on their own clock
     server.ts           rules: checkpoints, falls, pads, blinking and crumbling blocks, cannons, times
     course.ts           the ten stages, laid out as Blueprints with every jump checked against the physics
