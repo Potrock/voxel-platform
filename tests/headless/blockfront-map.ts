@@ -112,6 +112,8 @@ export default function blockfrontMap() {
     const longLow = low.filter((l) => l.d > 60);
     console.log(`  ${map.id}: longest sight lines in the streets ${low.slice(0, 4).map(say).join('; ')} (${longLow.length} of ${low.length} rays over 60)`);
     console.log(`  ${map.id}: from up high ${high.slice(0, 3).map(say).join('; ')} (${high.filter((l) => l.d > 60).length} of ${high.length} over 60)`);
-    check(longLow.length < low.length * 0.01, `${map.id}: too many long sight lines down the streets (${longLow.length} of ${low.length} over 60)`);
+    // A lane or two a sniper can use; not a street you can see the length of.
+    check(!low.length || low[0].d < 90, `${map.id}: a sight line down the streets ${say(low[0])}`);
+    check(longLow.length < low.length * 0.005, `${map.id}: too many long sight lines down the streets (${longLow.length} of ${low.length} over 60)`);
   }
 }

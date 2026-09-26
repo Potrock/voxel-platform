@@ -44,7 +44,8 @@ export function lamp(c: Canvas, x: number, y: number, z: number, head: BlockRef 
 /**
  * A market stall facing west (its counter along its west side, x0): a 4-post frame under a
  * striped awning at head height and a little over, a counter of crates with wares on it, a
- * back wall of crates. w along z (3..5), 3 deep.
+ * back wall of stock two high (cover, and a break in the view across the square). w along z
+ * (3..5), 3 deep.
  */
 export function stall(c: Canvas, x0: number, y: number, z0: number, w: number, awning: string, wares: BlockRef[], seed = 0) {
   const x1 = x0 + 2;
@@ -58,8 +59,12 @@ export function stall(c: Canvas, x0: number, y: number, z0: number, w: number, a
     const ware = wares[Math.floor(hash(x0, z, 94 + seed) * wares.length)];
     if (hash(z, x0, 95 + seed) < 0.75) c.set(x0, y + 1, z, ware);
   }
-  // Stock at the back.
-  for (let z = z0 + 1; z < z1; z++) if (hash(x1, z, 96 + seed) < 0.6) c.set(x1, y, z, hash(x1, z, 97 + seed) < 0.5 ? 'fuel_drum' : 'crate');
+  // Stock at the back, two high.
+  for (let z = z0 + 1; z < z1; z++) {
+    const r = hash(x1, z, 96 + seed);
+    c.set(x1, y, z, r < 0.35 ? 'fuel_drum' : r < 0.7 ? 'crate' : 'crate_metal');
+    c.set(x1, y + 1, z, hash(z, x1, 97 + seed) < 0.5 ? 'crate' : wares[Math.floor(r * wares.length)]);
+  }
 }
 
 /**

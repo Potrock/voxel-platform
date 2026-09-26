@@ -10,64 +10,67 @@ import { box, disc, dist, hash, slab, stairs, type Canvas } from './build';
  */
 
 /**
- * The saucer freighter: a round hull (its middle `(0.5, 0.5)`, 7.5 across the radius) thick in
- * the middle and thin at the rim, on landing legs a block high; two cargo prongs out front with a
- * slot between them, the cockpit tube off the starboard side (north, as built), the engine glow
+ * The saucer freighter: a round hull (its middle `(0.5, 0.5)`, `R` across the radius) thick in the
+ * middle and thin at the rim, on landing legs a block high; two cargo prongs out front with a slot
+ * between them, the cockpit tube off the starboard side (north, as built), the engines glowing
  * round the back, a gun turret and a sensor dish on top. A ramp comes down to starboard behind the
  * cockpit, and its back is walkable, in half steps, from the rim to the turret.
  */
-export function freighter(c: Canvas, y: number) {
-  const R = 7.5;
-  const topAt = (d: number) => 5.2 - 2.4 * (d / R) ** 2;
+export function freighter(c: Canvas, y: number, R = 9.5) {
+  const topAt = (d: number) => 5.2 - 2.8 * (d / R) ** 2;
+  // The slot between the prongs runs back into the hull a little.
+  const slot = (x: number, z: number) => x < -R + 3 && z >= -1 && z <= 1;
   disc(0.5, 0.5, R, (x, z, d) => {
-    const bottom = d < 6 ? 1 : 2;
+    if (slot(x, z)) return;
+    const bottom = d < R - 2 ? 1 : 2;
     const t = topAt(d);
     const full = Math.floor(t);
-    const rear = x >= 3 && d > 6.1;
-    for (let k = bottom; k < full; k++) c.set(x, y + k, z, rear && k === 2 ? 'engine_glow' : k === bottom && d > 5 ? 'hull_dark' : 'hull');
+    const rear = x > R * 0.35 && d > R - 1.3;
+    for (let k = bottom; k < full; k++) c.set(x, y + k, z, rear && k === 2 ? 'engine_glow' : k === bottom && d > R - 4 ? 'hull_dark' : 'hull');
     if (t - full >= 0.5) c.set(x, y + full, z, slab('hull'));
     else if (rear && full === 2) c.set(x, y + 2, z, 'engine_glow');
-    // Panel lines on top: a darker ring, and the spokes of the hull's plating.
-    const spoke = Math.abs(x - z) <= 0 || Math.abs(x + z - 1) <= 0;
-    if ((d > 3 && d < 3.8) || (spoke && d > 2 && d < 6)) {
-      const b = c.get(x, y + full - 1, z);
-      if (b === 'hull' && t - full < 0.5) c.set(x, y + full - 1, z, 'hull_dark');
+    // Panel lines on top: a darker ring, and the spokes of the plating.
+    const ang = Math.atan2(z + 0.5 - 0.5, x + 0.5 - 0.5);
+    const spoke = Math.abs(((ang / (Math.PI / 4)) % 1) + 1) % 1 < 0.08 * (6 / Math.max(d, 1));
+    if ((d > 3.6 && d < 4.4) || (spoke && d > 2.5 && d < R - 1.5)) {
+      if (c.get(x, y + full - 1, z) === 'hull' && t - full < 0.5) c.set(x, y + full - 1, z, 'hull_dark');
     }
   });
-  // The prongs, and the slot between them.
+  // The prongs: out past the rim, tapering.
   for (const side of [-1, 1])
-    for (let x = -12; x <= -6; x++)
+    for (let x = Math.floor(-R) - 6; x <= Math.floor(-R) + 3; x++)
       for (let w = 2; w <= 4; w++) {
         const z = side * w;
-        if (dist(x, z, 0.5, 0.5) <= R && x > -7) continue;
-        const tip = x <= -11;
+        if (dist(x, z, 0.5, 0.5) <= R - 1) continue;
+        const tip = x <= Math.floor(-R) - 5;
         c.set(x, y + 2, z, tip ? slab('hull') : w === 4 ? 'hull_dark' : 'hull');
-        if (!tip && x >= -9 && w < 4) c.set(x, y + 3, z, slab('hull'));
+        if (!tip && w < 4 && x >= Math.floor(-R) - 3) c.set(x, y + 3, z, slab('hull'));
       }
-  for (let x = -8; x <= -6; x++) for (let z = -1; z <= 1; z++) for (let k = 1; k <= 4; k++) if (dist(x, z, 0.5, 0.5) > 6.6) c.set(x, y + k, z, 'air');
   // The cockpit: a tube out to starboard and forward, glass at its end.
-  box(c, -7, y + 2, -9, -1, y + 3, -8, 'hull');
-  box(c, -1, y + 2, -8, 1, y + 2, -8, 'hull');
-  box(c, -8, y + 2, -9, -8, y + 3, -8, 'cockpit');
-  c.set(-7, y + 4, -9, slab('hull'));
-  c.set(-7, y + 4, -8, slab('hull'));
-  c.set(-8, y + 3, -9, 'cockpit');
+  const cz = -Math.round(R) - 1;
+  box(c, -8, y + 2, cz - 1, -1, y + 3, cz, 'hull');
+  box(c, -1, y + 2, cz + 1, 1, y + 3, cz + 1, 'hull');
+  box(c, -9, y + 2, cz - 1, -9, y + 3, cz, 'cockpit');
+  box(c, -8, y + 4, cz - 1, -6, y + 4, cz, slab('hull'));
+  c.set(-8, y + 3, cz, 'cockpit');
   // The turret on top, its guns, and the sensor dish.
-  c.set(0, y + 5, 0, 'hull_dark');
+  box(c, 0, y + 5, 0, 1, y + 5, 1, 'hull_dark');
   c.set(-1, y + 5, 0, 'vaporator_pipe');
-  c.set(2, y + 5, 4, 'pole');
-  box(c, 1, y + 6, 3, 3, y + 6, 5, slab('hull'));
-  c.set(2, y + 6, 4, 'hull_dark');
+  c.set(-1, y + 5, 1, 'vaporator_pipe');
+  c.set(3, y + 5, 5, 'pole');
+  box(c, 2, y + 6, 4, 4, y + 6, 6, slab('hull'));
+  c.set(3, y + 6, 5, 'hull_dark');
   // Legs.
-  for (const [x, z] of [[-4, -4], [-4, 4], [4, -4], [4, 4], [-1, 0], [-10, -3], [-10, 3]] as const) c.set(x, y, z, 'hull_dark');
+  for (const [x, z] of [[-5, -5], [-5, 5], [5, -5], [5, 5], [-1, 0], [-13, -3], [-13, 3]] as const) c.set(x, y, z, 'hull_dark');
   // The ramp down to starboard behind the cockpit, climbing to the rim.
+  const rz = -Math.round(R) - 1;
   for (let x = 1; x <= 3; x++) {
-    c.set(x, y, -10, stairs('plaster', 'south'));
-    c.set(x, y, -9, 'hull_dark');
-    c.set(x, y + 1, -9, stairs('plaster', 'south'));
-    c.set(x, y, -8, 'hull_dark');
-    c.set(x, y + 1, -8, 'hull_dark');
-    c.set(x, y + 2, -8, 'hull');
+    c.set(x, y, rz - 1, stairs('plaster', 'south'));
+    c.set(x, y, rz, 'hull_dark');
+    c.set(x, y + 1, rz, stairs('plaster', 'south'));
+    c.set(x, y, rz + 1, 'hull_dark');
+    c.set(x, y + 1, rz + 1, 'hull_dark');
+    c.set(x, y + 2, rz + 1, stairs('plaster', 'south'));
   }
 }
 
@@ -184,37 +187,49 @@ export function tieFighter(c: Canvas, y: number) {
 }
 
 /**
- * The wreck of a star destroyer: a dagger-shaped wedge `len` long, its nose buried in the sand at
- * the origin, rising along +x with its stern up in the air, the bridge tower on the stern; plates
- * torn away and the hull broken open here and there. For the backdrop: nobody gets near it.
+ * The wreck of a star destroyer: a dagger-shaped wedge `len` long, its nose at the origin and its
+ * stern along +x, rolled most of the way onto its side so its flat belly stands up like a wall
+ * facing -z, a great grey triangle of plating sunk in the sand (put dunes round it); its dead
+ * engines face +x, and plates are torn away here and there. For the backdrop: nobody gets near it.
  */
 export function wreck(c: Canvas, y: number, len = 120) {
   const W = len * 0.3;
-  const rise = 0.28;
+  const rise = 0.05;
+  const roll = (-62 * Math.PI) / 180;
+  const [cr, sr] = [Math.cos(roll), Math.sin(roll)];
+  const base = (u: number) => y - 5 + u * rise;
+  /** A cell of the hull in its own frame (u along it, v across its belly, k up from the belly), rolled. */
+  const put = (u: number, v: number, k: number, b: BlockRef) => {
+    const yy = Math.floor(base(u) + v * sr + k * cr);
+    if (yy < y - 3) return;
+    c.set(Math.floor(u), yy, Math.round(v * cr - k * sr), b);
+  };
+  /** The belly's plating: big panels ruled in dark lines, a few holes torn in it. */
+  const plate = (u: number, v: number): BlockRef => {
+    const hole = hash(u >> 4, Math.floor(v) >> 3, 9) < 0.07;
+    if (hole) return 'black_concrete';
+    return u % 12 === 0 || Math.floor(v) % 9 === 0 || hash(u, Math.floor(v), 8) < 0.015 ? 'hull_dark' : 'hull';
+  };
   for (let u = 0; u <= len; u++) {
     const t = u / len;
     const half = Math.max(1, W * t);
     const thick = 3 + 10 * t;
-    const base = y - 6 + u * rise;
-    for (let v = -Math.ceil(half); v <= Math.ceil(half); v++) {
+    for (let v = -half; v <= half; v += 0.5) {
       const edge = Math.abs(v) / half;
-      if (edge > 1) continue;
-      // Stepped top: the spine highest, the flanks falling away.
+      // Stepped decks on the far side: the spine highest, the flanks falling away.
       const top = thick * (1 - 0.55 * edge) + (edge < 0.18 ? 2 : 0);
-      // Torn open here and there: a few courses missing from the top.
-      const torn = hash(u >> 3, v >> 3, 7) < 0.14 && edge > 0.3 ? 3 : 0;
-      for (let k = 0; k <= top - torn; k++) {
-        const yy = Math.floor(base + k);
-        if (yy < y - 4) continue;
-        const b: BlockRef = hash(u, v, k + 11) < 0.1 || (u + v) % 9 === 0 || k >= top - torn - 1 && torn ? 'hull_dark' : 'hull';
-        c.set(u, yy, v, b);
+      for (let k = 0; k <= top; k += 0.5) {
+        const skin = k === 0 || k > top - 1 || Math.abs(v) > half - 1 || u === len;
+        if (skin) put(u, v, k, k === 0 ? plate(u, v) : 'hull');
       }
     }
   }
-  // The bridge tower on the stern, and its two globes.
-  const sx = len - 14;
-  const sb = Math.floor(y - 6 + sx * rise + 13);
-  box(c, sx, sb, -6, len - 4, sb + 5, 6, (x, yy, z) => (x === sx || yy === sb + 5 || Math.abs(z) === 6 || x === len - 4 ? (hash(x, z, yy) < 0.2 ? 'hull_dark' : 'hull') : undefined));
-  box(c, sx + 3, sb + 6, -9, sx + 7, sb + 8, 9, (x, yy, z) => (Math.abs(z) > 6 || yy === sb + 8 || x === sx + 3 ? 'hull' : undefined));
-  for (const s of [-1, 1]) disc(sx + 5.5, s * 7 + 0.5, 1.6, (x, z) => box(c, x, sb + 9, z, x, sb + 10, z, 'hull'));
+  // The stern: plated over, three dead engines.
+  for (let v = -W; v <= W; v += 0.5)
+    for (let k = 0; k <= 15; k += 0.5) {
+      const top = 13 * (1 - 0.55 * (Math.abs(v) / W)) + (Math.abs(v) / W < 0.18 ? 2 : 0);
+      if (k > top) continue;
+      const engine = [-12, 0, 12].some((e) => Math.hypot(v - e, k - 6) < 3.2);
+      put(len, v, k, engine ? 'black_concrete' : 'hull_dark');
+    }
 }

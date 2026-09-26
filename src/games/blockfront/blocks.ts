@@ -23,11 +23,31 @@ const pick = (colors: string[], x: number, y: number, k = 0) => colors[Math.floo
 // The town: plaster, adobe, windows, doorways, paving
 // ---------------------------------------------------------------------------------------------
 
-const PLASTER = { color: ['#ead9b7', '#e6d4b0', '#eddfc0', '#e2cfaa', '#e8d7b4'], noise: 0.5, scale: 4, seed: 3 };
-const PLASTER_SAND = { color: ['#dcbf93', '#d6b88b', '#e1c69c', '#d0b184', '#d9bc90'], noise: 0.5, scale: 4, seed: 5 };
-const ADOBE = { color: ['#c99d69', '#c39562', '#cfa571', '#bc8e5b', '#c69966'], noise: 0.5, scale: 3, seed: 7 };
-/** The dust kicked up the bottom of every wall. */
-const GRIME = { color: ['#c2a57d', '#b89b74', '#c8ac86', '#ae916b', '#bda079'], noise: 0.55, scale: 3, seed: 9 };
+/** '#rrggbb' scaled by k, as a colour. */
+function shade(hex: string, k: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Smooth render: a colour barely varying in broad swirls (tiling across the block), a fine grain,
+ * a hairline crack here and there. Painted rather than mottled so it catches the light flat, the
+ * way sun-baked plaster does.
+ */
+const render = (hex: string, k: number, grit = 0.03) => ({
+  paint: (x: number, y: number) => {
+    const swirl = Math.sin(((x + 3 * k) / 16) * Math.PI * 2) * Math.cos(((y + 5 * k) / 16) * Math.PI * 2 + x / 5);
+    const crack = grain(x >> 1, y, 60 + k) < 0.018 || (grain(x, y >> 2, 61 + k) < 0.015 && x > 2);
+    return shade(hex, crack ? 0.9 : 1 + 0.035 * swirl + grit * (grain(x, y, 62 + k) - 0.5));
+  },
+});
+
+const PLASTER = render('#e9d8b6', 1);
+const PLASTER_SAND = render('#dcc095', 2);
+const ADOBE = render('#c99e6b', 3, 0.05);
+/** The dust kicked up the bottom of every wall: darker toward the ground. */
+const GRIME = { paint: (x: number, y: number) => shade('#c8ab82', 0.9 + (0.1 * (15 - y)) / 15 - 0.06 * grain(x, y, 64)) };
 
 /** A round window set in plaster: a dark pane, a thin shadowed frame, a glint. */
 const windowOf = (wall: string) => ({
@@ -52,7 +72,7 @@ const PAVING = {
 };
 
 /** Packed sand: the streets, trodden hard. */
-const PACKED = { color: ['#d2b588', '#cbad7f', '#d7bb90', '#c6a678', '#ceb184'], noise: 0.6, scale: 2, seed: 13 };
+const PACKED = { paint: (x: number, y: number) => shade('#cfb286', 0.95 + 0.07 * grain(x >> 1, y >> 1, 13) + 0.03 * grain(x, y, 14)) };
 
 /** Big dressed sandstone blocks, for the docking bay's walls and the stairs' footings. */
 const ASHLAR = {
@@ -114,9 +134,9 @@ const REBEL_PANEL = {
     return grain(x, y, 31) < 0.1 ? '#6d704f' : pick(['#787b58', '#7c7f5b', '#747754'], x >> 2, y >> 2, 32);
   },
 };
-const HANGAR_FLOOR = { color: ['#8e8a82', '#88847c', '#938f87', '#827e76'], noise: 0.45, scale: 3, seed: 33 };
-/** Rebel orange and white, on the slant. */
-const HAZARD = { paint: (x: number, y: number) => (((x + y) >> 2) & 1 ? '#f1ece2' : '#e2702a') };
+const HANGAR_FLOOR = { color: '#8c8880', noise: 0.15, scale: 4, seed: 33 };
+/** Hazard stripes on the slant: Rebel orange on dark grey, worn. */
+const HAZARD = { paint: (x: number, y: number) => (((x + y) >> 2) & 1 ? (grain(x, y, 34) < 0.1 ? '#4a4a44' : '#3a3a36') : grain(x, y, 35) < 0.1 ? '#b85a22' : '#d9661f') };
 
 // ---------------------------------------------------------------------------------------------
 // The market, the bay and the desert
@@ -189,8 +209,9 @@ export const BLOCKS: Record<string, BlockDefinition> = {
   plaster_sand: { label: 'Sand Plaster', texture: PLASTER_SAND, hardness: 1 },
   adobe: { texture: ADOBE, hardness: 1 },
   plaster_grime: { label: 'Dusty Plaster', texture: GRIME, hardness: 1 },
-  plaster_window: { label: 'Round Window', texture: { side: windowOf('#e8d7b4'), top: PLASTER, bottom: PLASTER }, hardness: 1 },
-  adobe_window: { label: 'Adobe Window', texture: { side: windowOf('#c69966'), top: ADOBE, bottom: ADOBE }, hardness: 1 },
+  plaster_window: { label: 'Round Window', texture: { side: windowOf('#e9d8b6'), top: PLASTER, bottom: PLASTER }, hardness: 1 },
+  sand_window: { label: 'Sand Plaster Window', texture: { side: windowOf('#dcc095'), top: PLASTER_SAND, bottom: PLASTER_SAND }, hardness: 1 },
+  adobe_window: { label: 'Adobe Window', texture: { side: windowOf('#c99e6b'), top: ADOBE, bottom: ADOBE }, hardness: 1 },
   doorway: { label: 'Dark Doorway', texture: SHADOW, hardness: 1 },
   paving: { texture: PAVING, hardness: 1.5 },
   packed_sand: { label: 'Packed Sand', texture: PACKED, hardness: 0.8 },
@@ -200,7 +221,7 @@ export const BLOCKS: Record<string, BlockDefinition> = {
   durasteel_dark: { label: 'Dark Durasteel', texture: DURASTEEL_DARK, hardness: 2 },
   floor_grate: { texture: GRATE, hardness: 2 },
   imperial_light: { texture: lightPanel('#e9f4ff', '#ffffff'), light: 13, glow: 0.9, hardness: 1 },
-  imperial_red: { label: 'Imperial Red Light', texture: lightPanel('#ff3b30', '#ff8a7a'), light: 9, glow: 1, hardness: 1 },
+  imperial_red: { label: 'Imperial Red Light', texture: lightPanel('#e0261c', '#ff4a3a'), light: 9, glow: 0.75, hardness: 1 },
   // The Rebels.
   rebel_panel: { texture: REBEL_PANEL, hardness: 2 },
   hangar_floor: { texture: HANGAR_FLOOR, hardness: 2 },

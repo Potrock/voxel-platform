@@ -1,5 +1,5 @@
 import { Blueprint, type BlockRef } from '@platform';
-import { box, disc, dist, dome, hash, OPPOSITE, Place, rim, ring, slab, stairs, STEP, type Facing, type Fill } from './build';
+import { box, disc, dist, dome, hash, OPPOSITE, Place, rim, ring, slab, sprite, stairs, STEP, type Facing, type Fill } from './build';
 import { spawnAt, type MapSpec, type PostSpec, type SpawnPoint, type Terraform } from './kit';
 import * as props from './props';
 import * as ships from './ships';
@@ -43,10 +43,10 @@ const SOUTH = 58;
 
 /** The docking bay: its middle, the pit's radius, the ring wall's. */
 const BAY = { x: 0.5, z: 0.5 };
-const PIT_R = 17.5;
-const LEDGE_R = 20.5;
-const WALL_R = 22.5;
-const ROAD_R = 28.5;
+const PIT_R = 19.5;
+const LEDGE_R = 22.5;
+const WALL_R = 24.5;
+const ROAD_R = 30.5;
 /** Where the bay's gates are, in degrees round from east (toward the south): turned well off the streets. */
 const GATES = [30, 120, 210, 300];
 
@@ -115,6 +115,9 @@ function outcrop(cx: number, cz: number, r: number, h: number, k = 0) {
 // Houses
 // ---------------------------------------------------------------------------------------------
 
+/** Each plaster's round window. */
+const WINDOWS: Record<string, string> = { plaster: 'plaster_window', plaster_sand: 'sand_window', adobe: 'adobe_window' };
+
 interface Door {
   side: Facing;
   /** The door's first cell along the side (its x on a north or south side, its z on an east or west one). */
@@ -144,6 +147,12 @@ interface HouseOpts {
   clip?: (x: number, z: number) => boolean;
   /** A vaporator on the roof. */
   vaporator?: boolean;
+  /** A barrel vault along its length, in cream plaster. */
+  vault?: boolean;
+  /** An upper storey this many high, set back two from the walls (domed if `dome` is given). */
+  upper?: number;
+  /** Odds and ends on a flat roof: crates, drums, an antenna, a sunshade. */
+  clutter?: number;
 }
 
 function doorCells(d: Door, x0: number, z0: number, x1: number, z1: number): [number, number][] {
@@ -166,7 +175,7 @@ function doorCells(d: Door, x0: number, z0: number, x1: number, z1: number): [nu
 function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
   const top = FLOOR + o.h - 1;
   const mat = o.mat ?? 'plaster';
-  const win = mat === 'adobe' ? 'adobe_window' : 'plaster_window';
+  const win = WINDOWS[mat];
   const inside = (x: number, z: number) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && !(o.clip?.(x, z) ?? false) && !((x === x0 || x === x1) && (z === z0 || z === z1));
   const edge = (x: number, z: number) => !inside(x + 1, z) || !inside(x - 1, z) || !inside(x, z + 1) || !inside(x, z - 1);
   const doors = new Set<string>();
@@ -184,9 +193,10 @@ function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
           continue;
         }
         let b: BlockRef = y === FLOOR ? 'plaster_grime' : mat;
-        if (e && y === FLOOR + 2 && y < top - 1 && (x + z) % 3 === 0) b = o.hollow ? 'air' : win;
-        if (e && y < FLOOR + 3 && doors.has(`${x},${z}`)) b = 'air';
-        if (e && y < FLOOR + 3 && fakes.has(`${x},${z}`)) b = 'doorway';
+        if (e && (y === FLOOR + 2 || y === FLOOR + 6) && y < top - 1 && (x + z) % 3 === 0) b = o.hollow ? 'air' : win;
+        if (e && y < FLOOR + 3 && (doors.has(`${x},${z}`) || fakes.has(`${x},${z}`))) b = 'air';
+        // A painted door is a niche a block deep, dark at the back (somewhere to duck into).
+        else if (!e && y < FLOOR + 3 && fakes.size && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => fakes.has(`${x + dx},${z + dz}`))) b = 'doorway';
         set(x, y, z, b);
       }
       // A softened rim round a roof nobody's meant to walk (a slab course on plaster).
@@ -196,7 +206,7 @@ function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
   for (const d of [...(o.doors ?? []), ...(o.fake ?? [])]) {
     const cells = doorCells(d, x0, z0, x1, z1);
     const along: Facing = d.side === 'north' || d.side === 'south' ? 'west' : 'north';
-    if (mat === 'plaster' && (o.doors ?? []).includes(d)) {
+    {
       const [ax, az] = cells[0];
       const [bx, bz] = cells[cells.length - 1];
       set(ax, FLOOR + 2, az, stairs('plaster', along, true));
@@ -244,12 +254,55 @@ function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
       }
     }
   }
+  if (o.upper && x1 - x0 >= 6 && z1 - z0 >= 6) {
+    house(x0 + 2, z0 + 2, x1 - 2, z1 - 2, { h: o.h + o.upper, mat: mat === 'adobe' ? 'plaster_sand' : mat, dome: o.dome ? Math.min(o.dome, Math.floor(Math.min(x1 - x0, z1 - z0) / 2) - 2.5) : 0 });
+    return;
+  }
   if (o.dome) {
     const cx = (x0 + x1 + 1) / 2;
     const cz = (z0 + z1 + 1) / 2;
     dome(bp, cx, cz, o.dome, o.dome * 0.8, top + 1, 'plaster');
   }
+  if (o.vault) {
+    const alongX = x1 - x0 >= z1 - z0;
+    const span = alongX ? z1 - z0 + 1 : x1 - x0 + 1;
+    const R = span / 2;
+    const rise = Math.max(1.6, span * 0.34);
+    const c0 = alongX ? (z0 + z1 + 1) / 2 : (x0 + x1 + 1) / 2;
+    const at = (u: number) => rise * Math.sqrt(Math.max(0, 1 - (u / R) ** 2));
+    for (let z = z0; z <= z1; z++)
+      for (let x = x0; x <= x1; x++) {
+        if (!inside(x, z)) continue;
+        const u = (alongX ? z : x) + 0.5 - c0;
+        const hgt = at(u);
+        const full = Math.floor(hgt);
+        for (let k = 0; k < full; k++) set(x, top + 1 + k, z, 'plaster');
+        const frac = hgt - full;
+        if (frac < 0.3) continue;
+        const f: Facing = alongX ? (u < 0 ? 'south' : 'north') : u < 0 ? 'east' : 'west';
+        set(x, top + 1 + full, z, frac > 0.72 ? 'plaster' : at(Math.abs(u) - 1) - hgt > 0.6 ? stairs('plaster', f) : slab('plaster'));
+      }
+  }
   if (o.vaporator) props.vaporator(bp, x1 - 2, top + 1, z0 + 2, 6);
+  if (o.clutter && !o.dome && !o.vault) {
+    // A few things left on the roof, kept off its edge.
+    for (let i = 0; i < o.clutter; i++) {
+      const cx = x0 + 2 + Math.floor(hash(x0, z0, 70 + i) * Math.max(1, x1 - x0 - 3));
+      const cz = z0 + 2 + Math.floor(hash(z0, x0, 71 + i) * Math.max(1, z1 - z0 - 3));
+      const kind = hash(cx, cz, 72 + i);
+      if (kind < 0.3) props.drums(bp, cx, top + 1, cz, 2, i);
+      else if (kind < 0.55) set(cx, top + 1, cz, hash(cx, cz, 73) < 0.5 ? 'crate' : 'crate_metal');
+      else if (kind < 0.75) {
+        // An antenna: a pole with a little dish.
+        fill(cx, top + 1, cz, cx, top + 3, cz, 'vaporator_pipe');
+        set(cx, top + 4, cz, slab('hull'));
+      } else {
+        // A sunshade: an awning on four poles.
+        for (const [dx, dz] of [[0, 0], [2, 0], [0, 2], [2, 2]]) if (inside(cx + dx, cz + dz)) fill(cx + dx, top + 1, cz + dz, cx + dx, top + 2, cz + dz, 'pole');
+        fill(cx, top + 3, cz, cx + 2, top + 3, cz + 2, (x, _y, z) => (inside(x, z) ? AWNINGS[Math.floor(hash(x0, z0, 74) * 3)] : undefined));
+      }
+    }
+  }
 }
 
 /**
@@ -259,7 +312,7 @@ function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
 function hut(cx: number, cz: number, r: number, h: number, o: { mat?: string; doors?: Facing[]; open?: boolean; dome?: number; bands?: boolean } = {}) {
   const mat = o.mat ?? 'plaster_sand';
   const top = FLOOR + h - 1;
-  const win = mat === 'adobe' ? 'adobe_window' : 'plaster_window';
+  const win = WINDOWS[mat] ?? 'plaster_window';
   disc(cx, cz, r, (x, z) => {
     const e = rim(x, z, cx, cz, r);
     if (o.open && !e) set(x, G, z, 'paving');
@@ -319,7 +372,7 @@ function hangar() {
             continue;
           }
           const frame = x === HX1 && (Math.abs(z) === 10 || y === FLOOR + 8);
-          set(x, y, z, frame ? 'hazard' : y === FLOOR ? 'durasteel_dark' : y === FLOOR + 6 && !end ? 'rebel_light' : 'rebel_panel');
+          set(x, y, z, frame ? (y === FLOOR + 8 && Math.abs(z) % 3 === 0 ? 'rebel_light' : 'durasteel_dark') : y === FLOOR ? 'durasteel_dark' : y === FLOOR + 6 && !end ? 'rebel_light' : 'rebel_panel');
         }
       }
       set(x, roofY, z, (x - HX0) % 6 === 0 ? 'durasteel_dark' : 'rebel_panel');
@@ -380,21 +433,41 @@ function market() {
   // The cistern in the middle: a round tank two high to crouch behind, a vaporator over it.
   disc(MARKET.x, MARKET.z, 2.5, (x, z) => fill(x, FLOOR, z, x, FLOOR + 1, z, (_x, y) => (rim(x, z, MARKET.x, MARKET.z, 2.5) ? (y === FLOOR ? 'ashlar' : 'plaster_sand') : y === FLOOR ? 'ashlar' : 'pad_blue')));
   props.vaporator(bp, -43, FLOOR, 22, 8);
-  // Stalls round the post, facing in; more along the square's edges.
-  props.stall(at(-49, 17), 0, FLOOR, 0, 4, 'awning_red', ['orange_concrete', 'yellow_wool', 'green_wool'], 1);
-  props.stall(at(-36, 28, 2), 0, FLOOR, 0, 4, 'awning_blue', ['cyan_concrete', 'white_wool', 'iron_block'], 2);
-  props.stall(at(-38, 15, 1), 0, FLOOR, 0, 4, 'awning_ochre', ['brown_concrete', 'red_wool', 'yellow_concrete'], 3);
-  props.stall(at(-47, 30, 3), 0, FLOOR, 0, 4, 'awning_red', ['light_blue_concrete', 'white_concrete', 'crate'], 4);
-  props.stall(at(-56, 11), 0, FLOOR, 0, 5, 'awning_blue', ['green_wool', 'orange_concrete', 'fuel_drum'], 5);
-  props.stall(at(-31, 30, 2), 0, FLOOR, 0, 5, 'awning_ochre', ['red_wool', 'white_wool', 'brown_concrete'], 6);
-  props.stall(at(-56, 27), 0, FLOOR, 0, 5, 'awning_red', ['yellow_wool', 'iron_block', 'cyan_concrete'], 7);
-  props.crates(bp, -34, FLOOR, 12, 2, 2, 2, 8);
-  props.drums(bp, -52, FLOOR, 33, 3, 9);
-  props.crates(bp, -41, FLOOR, 32, 3, 2, 1, 10);
-  props.lowWall(bp, -45, FLOOR, 12, 4, 'x', 'plaster_grime', 11);
-  props.lamp(bp, -50, FLOOR, 22);
-  props.lamp(bp, -35, FLOOR, 22);
-  props.commandPost(bp, -38, FLOOR, 25, 'pad_blue', 2);
+  // An inner ring of stalls with their backs to the cistern: a little fort round the post, a way
+  // in at each corner. (A stall is built facing west; one turn faces it north, two east, three south.)
+  const WARES: BlockRef[][] = [
+    ['orange_concrete', 'yellow_wool', 'green_wool'],
+    ['cyan_concrete', 'white_wool', 'iron_block'],
+    ['brown_concrete', 'red_wool', 'yellow_concrete'],
+    ['light_blue_concrete', 'white_concrete', 'crate'],
+    ['green_wool', 'orange_concrete', 'fuel_drum'],
+    ['red_wool', 'white_wool', 'brown_concrete'],
+  ];
+  const stall = (x: number, z: number, turns: number, w: number, k: number) => props.stall(at(x, z, turns), 0, FLOOR, 0, w, AWNINGS[k % 3], WARES[k % WARES.length], k);
+  stall(-41, 15, 1, 5, 0); // north of the cistern, facing north
+  stall(-44, 30, 3, 5, 1); // south, facing south
+  stall(-50, 20, 0, 5, 2); // west, facing west
+  stall(-35, 25, 2, 5, 3); // east, facing east
+  // Round the edges, facing in: the west side (a gap for the way west), the south, the east.
+  stall(-55, 16, 2, 4, 4);
+  stall(-55, 27, 2, 5, 5);
+  stall(-49, 33, 1, 4, 6);
+  stall(-33, 33, 1, 4, 7);
+  stall(-30, 22, 0, 4, 8);
+  stall(-30, 27, 0, 5, 9);
+  stall(-38, 11, 3, 4, 10);
+  stall(-53, 11, 3, 4, 11);
+  // Crates and drums between them, lamps on poles.
+  props.crates(bp, -33, FLOOR, 12, 2, 2, 2, 8);
+  props.drums(bp, -56, FLOOR, 33, 3, 9);
+  props.crates(bp, -46, FLOOR, 35, 3, 1, 2, 10);
+  props.drums(bp, -31, FLOOR, 16, 3, 12);
+  props.crates(bp, -54, FLOOR, 23, 1, 2, 2, 13);
+  props.lamp(bp, -47, FLOOR, 17);
+  props.lamp(bp, -38, FLOOR, 28);
+  props.lamp(bp, -47, FLOOR, 28);
+  props.lamp(bp, -38, FLOOR, 17);
+  props.commandPost(bp, -46, FLOOR, 22, 'pad_blue', 2);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -405,8 +478,8 @@ function bay() {
   disc(BAY.x, BAY.z, ROAD_R, (x, z, d) => {
     if (d < PIT_R) {
       // The pit: its floor three down, a ring of landing lights, the old scorch.
-      const lights = Math.abs(d - 14.5) < 0.5 && (x + z) % 3 === 0;
-      set(x, PIT - 1, z, lights ? 'pad_amber' : hash(x, z, 30) < 0.04 ? 'black_concrete' : Math.abs(d - 14.5) < 0.5 ? 'hazard' : 'paving');
+      const lights = Math.abs(d - 16.5) < 0.5 && (x + z) % 3 === 0;
+      set(x, PIT - 1, z, lights ? 'pad_amber' : hash(x, z, 30) < 0.04 ? 'black_concrete' : Math.abs(d - 16.5) < 0.5 ? 'hazard' : 'paving');
       for (let y = PIT; y <= G; y++) set(x, y, z, 'air');
     } else if (d < PIT_R + 1) {
       for (let y = PIT - 1; y <= G; y++) set(x, y, z, 'ashlar');
@@ -430,6 +503,15 @@ function bay() {
       const across = -(x + 0.5 - BAY.x) * sn + (z + 0.5 - BAY.z) * c;
       if (along > 0 && Math.abs(across) < 2) for (let y = FLOOR; y < FLOOR + 4; y++) set(x, y, z, 'air');
       if (along > 0 && Math.abs(Math.abs(across) - 3) < 0.5 && d > WALL_R - 0.6) set(x, FLOOR + 4, z, 'pad_amber');
+    });
+    // A screen out on the ring road in front of it: nobody sees in through it from the street.
+    disc(BAY.x, BAY.z, ROAD_R, (x, z) => {
+      const along = (x + 0.5 - BAY.x) * c + (z + 0.5 - BAY.z) * sn;
+      const across = -(x + 0.5 - BAY.x) * sn + (z + 0.5 - BAY.z) * c;
+      if (Math.abs(across) < 3.5 && Math.abs(along - (WALL_R + 3)) < 0.6) {
+        for (let y = FLOOR; y < FLOOR + 3; y++) set(x, y, z, y === FLOOR ? 'plaster_grime' : 'plaster_sand');
+        set(x, FLOOR + 3, z, slab('plaster'));
+      }
     });
     // The ramp: three stairs down from the ledge's lip to the floor, three wide.
     const alongX = Math.abs(c) > Math.abs(sn);
@@ -457,13 +539,13 @@ function bay() {
   }
   // Ladders up the ring wall's outside, north and south, to the walk along its top.
   for (let y = FLOOR; y <= FLOOR + 8; y++) {
-    set(0, y, -22, 'ladder[facing=north]');
-    set(0, y, 23, 'ladder[facing=south]');
+    set(0, y, -24, 'ladder[facing=north]');
+    set(0, y, 25, 'ladder[facing=south]');
   }
-  fill(0, FLOOR + 8, -21, 0, FLOOR + 8, -21, 'air');
-  fill(0, FLOOR + 8, 22, 0, FLOOR + 8, 22, 'air');
+  set(0, FLOOR + 8, -23, 'air');
+  set(0, FLOOR + 8, 24, 'air');
   // The freighter, nose east, north of the post.
-  ships.freighter(at(0, -7, 2), PIT);
+  ships.freighter(at(0, -8, 2), PIT);
   // Cargo round the post: crates, drums, a fuel line, a cargo sled.
   props.crates(bp, -7, PIT, 5, 2, 2, 2, 12);
   props.crates(bp, 6, PIT, 9, 3, 2, 1, 13);
@@ -490,33 +572,44 @@ function bay() {
 const CANTINA = { x: 42.5, z: -21.5 };
 const HALL_R = 11.5;
 
+/** The cantina's porch: a little domed hall off the main street, a door through to the big one. */
+const PORCH: Rect = [39, -9, 45, -5];
+
 function cantina() {
   const top = FLOOR + 6;
-  // The hall: a drum of thick plaster, a great dome on it, a floor of dark tiles.
+  // The hall: a drum of thick plaster, a great dome on it; a floor of flags ringed in dark tile,
+  // boards inside the bar.
   disc(CANTINA.x, CANTINA.z, HALL_R + 0.5, (x, z, d) => {
-    set(x, G, z, d < HALL_R - 1 ? ((x + z) & 1 ? 'brown_concrete' : 'packed_sand') : 'paving');
-    if (d >= HALL_R - 1) for (let y = FLOOR; y <= top; y++) set(x, y, z, y === FLOOR ? 'plaster_grime' : y === top - 1 ? 'adobe' : 'plaster');
+    set(x, G, z, d < 4.5 ? 'spruce_planks' : Math.abs(d - 7.5) < 0.6 ? 'brown_concrete' : d < HALL_R - 1 ? 'ashlar' : 'paving');
+    if (d >= HALL_R - 1) for (let y = FLOOR; y <= top; y++) set(x, y, z, y === FLOOR ? 'plaster_grime' : y === top - 1 ? 'adobe' : y === FLOOR + 4 && (x + z) % 4 === 0 ? 'plaster_window' : 'plaster');
     else for (let y = FLOOR; y <= top; y++) set(x, y, z, 'air');
   });
   dome(bp, CANTINA.x, CANTINA.z, HALL_R + 0.5, 8, top + 1, 'plaster', 1);
-  // The bar: a ring of counter round the pillar that holds the dome up, lamps in its top.
+  // A lantern on top of the dome.
+  disc(CANTINA.x, CANTINA.z, 1.5, (x, z) => fill(x, top + 8, z, x, top + 9, z, (_x, y) => (y === top + 9 ? slab('plaster') : 'pad_amber')));
+  // The bar: a ring of counter round the pillar that holds the dome up, lit from underneath.
   ring(bp, CANTINA.x, CANTINA.z, 4.5, FLOOR, FLOOR, 'spruce_planks');
   ring(bp, CANTINA.x, CANTINA.z, 4.5, FLOOR + 1, FLOOR + 1, slab('spruce'));
-  disc(CANTINA.x, CANTINA.z, 1.5, (x, z) => fill(x, FLOOR, z, x, top + 8, z, (_x, y) => (y === FLOOR + 5 ? 'pad_amber' : 'adobe')));
+  ring(bp, CANTINA.x, CANTINA.z, 3.5, FLOOR, FLOOR, (x, _y, z) => ((x + z) % 3 === 0 ? 'pad_amber' : undefined));
+  disc(CANTINA.x, CANTINA.z, 1.5, (x, z) => fill(x, FLOOR, z, x, top + 7, z, (_x, y) => (y === FLOOR + 4 || y === top + 2 ? 'pad_amber' : (y - FLOOR) % 3 === 0 ? 'adobe' : 'plaster')));
   // Gaps in the bar to get behind it.
   fill(42, FLOOR, -26, 43, FLOOR + 1, -26, 'air');
   fill(42, FLOOR, -17, 43, FLOOR + 1, -17, 'air');
-  // Booths round the wall: a bench and a table, lamps over them.
-  for (let a = 0; a < 10; a++) {
-    const t = (a / 10) * Math.PI * 2 + 0.3;
-    const x = Math.floor(CANTINA.x + Math.cos(t) * (HALL_R - 2.2));
-    const z = Math.floor(CANTINA.z + Math.sin(t) * (HALL_R - 2.2));
-    if (a % 2 === 0) set(x, FLOOR, z, slab('spruce'));
-    const lx = Math.floor(CANTINA.x + Math.cos(t) * (HALL_R - 1.2));
-    const lz = Math.floor(CANTINA.z + Math.sin(t) * (HALL_R - 1.2));
+  // Booths round the wall between the doors: a bench each side of a table, a lamp over each.
+  for (let a = 0; a < 12; a++) {
+    const deg = a * 30 + 15;
+    if ([0, 60, 90, 120, 180, 270].some((door) => Math.abs(((deg - door + 540) % 360) - 180) < 20)) continue;
+    const t = (deg * Math.PI) / 180;
+    const at = (r: number): [number, number] => [Math.floor(CANTINA.x + Math.cos(t) * r), Math.floor(CANTINA.z + Math.sin(t) * r)];
+    const [tx, tz] = at(HALL_R - 2.6);
+    set(tx, FLOOR, tz, 'pole');
+    set(tx, FLOOR + 1, tz, slab('spruce'));
+    const [bx, bz] = at(HALL_R - 1.6);
+    set(bx, FLOOR, bz, slab('spruce'));
+    const [lx, lz] = at(HALL_R - 1.1);
     set(lx, FLOOR + 3, lz, 'pad_amber');
   }
-  // Five ways in: two from the main street (south), west, north and east.
+  // Six ways in: through the porch (south), either side of it, west, north and east.
   const doorAt = (angle: number, w: number) => {
     const t = (angle * Math.PI) / 180;
     for (let r = HALL_R - 2; r <= HALL_R + 1; r += 0.5)
@@ -527,17 +620,16 @@ function cantina() {
         set(x, FLOOR + 3, z, dist(x, z, CANTINA.x, CANTINA.z) > HALL_R - 1 ? 'adobe' : 'plaster');
       }
   };
-  doorAt(60, 3);
-  doorAt(120, 3);
-  doorAt(180, 3);
-  doorAt(270, 3);
-  doorAt(0, 3);
-  // The entrance porch on the south-west: a squat vestibule with its own little dome.
+  for (const deg of [0, 60, 90, 120, 180, 270]) doorAt(deg, 3);
+  // The porch: its own little dome, a door to the street and one to the hall, a sign over it.
+  const [px0, pz0, px1, pz1] = PORCH;
+  house(px0, pz0, px1, pz1, { h: 5, mat: 'adobe', hollow: true, doors: [{ side: 'south', at: 41, w: 3 }, { side: 'north', at: 41, w: 3 }], dome: 3, awning: 'awning_ochre' });
+  // The sign: a dark board on the porch's roof, a glass in neon.
+  const GLASS = ['X.X', '.X.', '.X.', 'XXX'];
+  fill(px0 + 2, FLOOR + 5, pz1, px1 - 2, FLOOR + 9, pz1, 'durasteel_dark');
+  sprite(bp, GLASS, { X: 'neon_yellow' }, (u, v) => ({ x: px0 + 2 + u, y: FLOOR + 5 + v, z: pz1 + 1 }));
   props.commandPost(bp, 46, FLOOR, -21, 'pad_blue', 2);
-  for (let x = 33; x <= 52; x += 19) props.lamp(bp, x, FLOOR, -8);
-  // Signs: CANTINA over the south doors.
-  const letters = ['XX.XX.X..X.XXX.X.X..X.XX.', 'X..X.X.XX.X..X...X.XX.X.X', 'X..XXX.X.XX..X..XX.X.XX.X', 'X..X.X.X..X..X...X.X..XXX', 'XX.X.X.X..X..X..XX.X..X.X'];
-  void letters;
+  for (const x of [34, 51]) props.lamp(bp, x, FLOOR, -8);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -549,51 +641,77 @@ const GX1 = 103;
 const GZ = 21;
 
 function garrison() {
-  // The floor: plates and grates; the pad a disc of grates ringed in lights.
-  for (let z = -GZ; z <= GZ; z++) for (let x = GX0 - 12; x <= GX1; x++) set(x, G, z, x < GX0 ? ((x + z) % 5 === 0 ? 'floor_grate' : 'durasteel') : (x & 3) === 0 || (z & 3) === 0 ? 'durasteel_dark' : 'durasteel');
-  disc(89.5, 0.5, 8.5, (x, z, d) => set(x, G, z, d > 7.6 ? ((x + z) % 2 ? 'imperial_light' : 'durasteel_dark') : 'floor_grate'));
-  // The walls: seven high, two thick, dark at the foot, red lights along them; a gate in each of
-  // the west, north and south walls.
+  // The floor: plates in a dark grid, grated walkways; the pad a disc of grates ringed in lights.
+  for (let z = -GZ; z <= GZ; z++)
+    for (let x = GX0 - 12; x <= GX1; x++) {
+      const walk = Math.abs(z) <= 1 || x === GX0 + 6;
+      set(x, G, z, x < GX0 ? ((x + z) % 5 === 0 ? 'floor_grate' : 'durasteel') : walk ? 'floor_grate' : (x & 3) === 0 || (z & 3) === 0 ? 'durasteel_dark' : 'durasteel');
+    }
+  disc(89.5, 0.5, 8.5, (x, z, d) => set(x, G, z, d > 7.6 ? ((x + z) % 2 ? 'imperial_light' : 'durasteel_dark') : d < 2 ? 'durasteel_dark' : 'floor_grate'));
+  // The walls: eight high, two thick; a dark foot and cornice, dark pilasters down the outside
+  // with a red strip light in each; a gate in each of the west, north and south walls.
+  const gate = (x: number, z: number) => (x <= GX0 + 1 && Math.abs(z) <= 4) || (Math.abs(z) >= GZ - 1 && x >= 80 && x <= 84);
   for (let z = -GZ; z <= GZ; z++)
     for (let x = GX0; x <= GX1; x++) {
-      const w = x <= GX0 + 1 || x >= GX1 - 1 || Math.abs(z) >= GZ - 1;
-      if (!w) continue;
-      const gate = (x <= GX0 + 1 && Math.abs(z) <= 4) || (Math.abs(z) >= GZ - 1 && x >= 80 && x <= 84);
-      for (let y = FLOOR; y < FLOOR + 7; y++) {
-        if (gate && y < FLOOR + 5) {
+      const outer = x === GX0 || x === GX1 || Math.abs(z) === GZ;
+      if (!outer && !(x === GX0 + 1 || x === GX1 - 1 || Math.abs(z) === GZ - 1)) continue;
+      const along = x === GX0 || x === GX1 ? z : x;
+      const pilaster = outer && ((along % 5) + 5) % 5 === 0;
+      for (let y = FLOOR; y < FLOOR + 8; y++) {
+        if (gate(x, z) && y < FLOOR + 5) {
           set(x, y, z, 'air');
           continue;
         }
-        set(x, y, z, y === FLOOR ? 'durasteel_dark' : y === FLOOR + 5 && (x + z) % 4 === 0 ? 'imperial_red' : y === FLOOR + 6 ? 'durasteel_dark' : 'durasteel');
+        const base = y <= FLOOR + 1 || y === FLOOR + 7;
+        set(x, y, z, pilaster && y === FLOOR + 4 ? 'imperial_red' : base || pilaster ? 'durasteel_dark' : 'durasteel');
       }
     }
-  // Towers at the corners of the west wall.
-  for (const s of [-1, 1]) fill(GX0 - 1, FLOOR, s * GZ - 1, GX0 + 3, FLOOR + 10, s * GZ + 1, (x, y, z) => (y === FLOOR + 9 && (x + z) % 2 === 0 ? 'imperial_red' : y >= FLOOR + 10 ? 'durasteel_dark' : 'durasteel'));
-  // Barracks along the north and south walls: long, low, doors toward the pad.
+  // The main gate's portal: a tall dark frame standing out from the wall, lights up its sides,
+  // the blast door's lower edge hanging over the opening.
+  fill(GX0 - 1, FLOOR, -7, GX0 - 1, FLOOR + 10, 7, (_x, y, z) => {
+    if (Math.abs(z) <= 4 && y < FLOOR + 5) return 'air';
+    if (Math.abs(z) === 5 && y >= FLOOR + 1 && y <= FLOOR + 6) return 'imperial_red';
+    return y >= FLOOR + 9 && Math.abs(z) > 5 ? undefined : 'durasteel_dark';
+  });
+  fill(GX0, FLOOR + 5, -4, GX0 + 1, FLOOR + 5, 4, 'hull_dark');
+  for (let x = GX0 - 1; x <= GX0 + 1; x++) for (let z = -4; z <= 4; z++) set(x, G, z, z % 2 ? 'hazard' : 'durasteel_dark');
+  // Towers at the four corners, tapering at the top, a red band round them.
+  for (const [cx, cz] of [[GX0 + 1, -GZ + 1], [GX0 + 1, GZ - 1], [GX1 - 1, -GZ + 1], [GX1 - 1, GZ - 1]])
+    fill(cx - 3, FLOOR, cz - 3, cx + 3, FLOOR + 12, cz + 3, (x, y, z) => {
+      const r = Math.max(Math.abs(x - cx), Math.abs(z - cz));
+      if (y >= FLOOR + 11 && r === 3) return undefined;
+      if (y === FLOOR + 12 && r === 2) return undefined;
+      if (y === FLOOR + 9 && r === 3) return (x + z) % 2 ? 'imperial_red' : 'durasteel_dark';
+      return y <= FLOOR + 1 || y >= FLOOR + 10 ? 'durasteel_dark' : 'durasteel';
+    });
+  // Barracks along the north and south walls: long, low, dark roofed, strip lights, doors toward the pad.
   for (const s of [-1, 1]) {
     const z0 = s < 0 ? -GZ + 2 : GZ - 8;
     const z1 = s < 0 ? -GZ + 8 : GZ - 2;
-    fill(GX0 + 12, FLOOR, z0, GX1 - 3, FLOOR + 4, z1, (x, y, z) => {
-      const edge = x === GX0 + 12 || x === GX1 - 3 || z === z0 || z === z1;
-      if (!edge && y < FLOOR + 4) return 'air';
-      if (y === FLOOR + 4) return 'durasteel_dark';
-      if (y === FLOOR + 2 && edge && x % 3 === 0) return 'imperial_light';
+    fill(GX0 + 12, FLOOR, z0, GX1 - 5, FLOOR + 5, z1, (x, y, z) => {
+      const edge = x === GX0 + 12 || x === GX1 - 5 || z === z0 || z === z1;
+      if (!edge && y < FLOOR + 5) return 'air';
+      if (y === FLOOR + 5 || y === FLOOR) return 'durasteel_dark';
+      if (y === FLOOR + 3 && edge && x % 3 === 0) return 'imperial_light';
       return 'durasteel';
     });
     const zf = s < 0 ? z1 : z0;
-    for (const x of [GX0 + 16, GX0 + 26]) fill(x, FLOOR, zf, x + 1, FLOOR + 2, zf, 'air');
+    for (const x of [GX0 + 15, GX0 + 25]) fill(x, FLOOR, zf, x + 1, FLOOR + 2, zf, 'air');
+    fill(GX0 + 12, FLOOR + 6, z0 + 1, GX1 - 5, FLOOR + 6, z1 - 1, (x) => (x % 4 === 0 ? 'durasteel_dark' : undefined));
   }
-  // The shuttle on the pad, nose toward the gate; a fighter by the south barracks.
-  ships.shuttle(at(89, 0), FLOOR);
-  ships.tieFighter(at(78, 11), FLOOR);
-  // Cover in the forecourt and the yard: cargo, barriers.
+  // The shuttle on the pad, nose toward the gate; a fighter parked by the south barracks.
+  ships.shuttle(at(90, 0), FLOOR);
+  ships.tieFighter(at(78, 12), FLOOR);
+  // Cover in the forecourt and the yard: cargo, barriers, guard booths either side of the gate.
   props.crates(bp, 62, FLOOR, -9, 2, 3, 2, 20);
   props.crates(bp, 64, FLOOR, 7, 3, 2, 2, 21);
-  fill(76, FLOOR, -7, 76, FLOOR, -3, 'durasteel_dark');
-  fill(76, FLOOR, 4, 76, FLOOR, 8, 'durasteel_dark');
-  props.banner(bp, GX0 - 1, FLOOR + 11, -GZ + 3, 'banner_imperial', 0);
-  props.banner(bp, GX0 - 1, FLOOR, -8, 'banner_imperial', 7);
-  props.banner(bp, GX0 - 1, FLOOR, 6, 'banner_imperial', 7);
+  for (const s of [-1, 1]) {
+    fill(GX0 - 4, FLOOR, s * 8 - 1, GX0 - 2, FLOOR + 3, s * 8 + 1, (x, y, z) => (y === FLOOR + 3 ? 'durasteel_dark' : y === FLOOR + 2 && x === GX0 - 4 && z === s * 8 ? 'cockpit' : 'durasteel'));
+    fill(76, FLOOR, s * 5, 76, FLOOR + 1, s * 8, (_x, y) => (y === FLOOR ? 'durasteel_dark' : 'hull_dark'));
+    fill(84, FLOOR, s * 11 - 1, 86, FLOOR + 1, s * 11 + 1, (x, y, z) => ((x + y + z) % 3 === 0 ? 'crate_metal' : 'durasteel_dark'));
+  }
+  props.banner(bp, GX0 - 2, FLOOR, -12, 'banner_imperial', 8);
+  props.banner(bp, GX0 - 2, FLOOR, 9, 'banner_imperial', 8);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -682,6 +800,8 @@ function layout() {
     }
   for (const r of STREETS) mark(r, STREET, FREE);
   for (const r of OPEN) mark(r, STREET, FREE);
+  // The cantina's porch.
+  mark(PORCH, SPECIAL);
   // The two bases, the rock round the hangar.
   mark([HX0, -HZ, HX1, HZ], SPECIAL);
   for (const [cx, cz, r] of OUTCROPS) disc(cx, cz, r, (x, z) => mark([x, z, x, z], SPECIAL, FREE));
@@ -774,14 +894,19 @@ function fillHouses() {
       const small = Math.min(w, d);
       // Never under five high: nothing standing in the street (a crate, a speeder) gets anyone onto a roof.
       const h = 5 + Math.floor(hash(x, z, 55) * 2.6) + (small >= 8 && r < 0.2 ? 2 : 0);
+      // Its roof: a dome, a barrel vault, an upper storey (domed, now and then), or flat with things on it.
+      const style = small >= 6 && r > 0.62 ? 'dome' : small >= 5 && r > 0.38 && r <= 0.62 ? 'vault' : small >= 9 && r < 0.18 ? 'upper' : 'flat';
       house(x, z, x1, z1, {
         h,
         mat: MATS[Math.floor(hash(x, z, 56) * MATS.length)],
-        dome: small >= 6 && r > 0.55 ? Math.min(5, Math.floor(small / 2) - 0.5) : 0,
+        dome: style === 'dome' || (style === 'upper' && r < 0.1) ? Math.min(5, Math.floor(small / 2) - 0.5) : 0,
+        vault: style === 'vault',
+        upper: style === 'upper' ? 2 + Math.floor(hash(x, z, 59) * 2) : 0,
         fake,
         awning: hash(x, z, 57) < 0.6 ? AWNINGS[Math.floor(hash(x, z, 58) * 3)] : undefined,
-        vaporator: small >= 5 && r > 0.3 && r < 0.42,
-        parapet: r > 0.42 && r <= 0.55,
+        vaporator: style === 'flat' && small >= 5 && hash(x, z, 60) < 0.3,
+        parapet: style === 'flat' && hash(x, z, 61) < 0.3,
+        clutter: style === 'flat' ? 1 + Math.floor(hash(x, z, 62) * 3) : 0,
       });
     }
 }
@@ -861,7 +986,7 @@ function town() {
 
 /** A wall across part of a street, two high: cover, and a break in the view down it. */
 function barrier(x0: number, z0: number, x1: number, z1: number) {
-  fill(x0, FLOOR, z0, x1, FLOOR + 1, z1, (x, y, z) => (y === FLOOR ? 'plaster_grime' : (x + z) % 4 === 0 ? 'plaster_window' : 'adobe'));
+  fill(x0, FLOOR, z0, x1, FLOOR + 1, z1, (x, y, z) => (y === FLOOR ? 'plaster_grime' : (x + z) % 4 === 0 ? 'adobe_window' : 'adobe'));
 }
 
 function streets() {
@@ -870,13 +995,13 @@ function streets() {
   barrier(-52, -4, -51, 0);
   barrier(-41, 0, -40, 4);
   barrier(51, 0, 52, 4);
-  barrier(40, -4, 41, 0);
+  barrier(33, -4, 34, 0);
   props.landspeeder(at(-47, 1), 0, FLOOR, 0, 'light_blue_concrete');
   props.crates(bp, -56, FLOOR, 1, 2, 2, 2, 30);
   props.vaporator(bp, -34, FLOOR, -2, 7);
   props.drums(bp, -30, FLOOR, 2, 3, 31);
-  props.crashedSpeeder(at(46, -3, 2), 0, FLOOR, 0, 'red_concrete');
-  props.crates(bp, 55, FLOOR, -2, 2, 2, 2, 32);
+  props.crashedSpeeder(at(60, -1, 2), 0, FLOOR, 0, 'red_concrete');
+  props.crates(bp, 44, FLOOR, 1, 2, 2, 2, 32);
   props.vaporator(bp, 34, FLOOR, 2, 7);
   props.drums(bp, 29, FLOOR, -3, 3, 33);
   // The alleys: the same, turned.
@@ -922,9 +1047,17 @@ function streets() {
 // The backdrop: a wreck in the dunes, mesas round the canyon
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Out in the dunes south of the canyon, the wreck of a star destroyer lying across the horizon on
+ * its side, its decks and bridge tower toward the town, its nose buried in the west and its stern
+ * reared up in the east: the town's landmark from anywhere.
+ */
 function backdrop(): Blueprint {
-  const w = new Blueprint({ x: 20, y: FLOOR - 8, z: 118 }, { x: 132, y: 64, z: 90 });
-  ships.wreck(new Place(w, 30, 160, 0), FLOOR, 120);
+  const len = 150;
+  const ox = -78;
+  const oz = 106;
+  const w = new Blueprint({ x: ox - 4, y: FLOOR - 8, z: oz - 36 }, { x: len + 10, y: 60, z: 62 });
+  ships.wreck(new Place(w, ox, oz, 0), FLOOR, len);
   return w;
 }
 
@@ -940,11 +1073,13 @@ const TERRAFORM: Terraform[] = [
   // East, behind the garrison.
   { x: 150, z: 30, radius: 24, blend: 12, height: FLOOR + 18 },
   { x: 148, z: -45, radius: 26, blend: 10, height: FLOOR + 22 },
-  // South: the dunes, rolling off toward the wreck.
+  // South: the dunes, rolling off toward the wreck, and heaped round it.
   { x: -70, z: 95, radius: 14, blend: 30, height: FLOOR + 10 },
-  { x: 0, z: 100, radius: 10, blend: 32, height: FLOOR + 8 },
-  { x: 80, z: 105, radius: 18, blend: 30, height: FLOOR + 7 },
   { x: -130, z: 130, radius: 20, blend: 34, height: FLOOR + 14 },
+  { x: -60, z: 100, radius: 12, blend: 26, height: FLOOR + 6 },
+  { x: 0, z: 118, radius: 12, blend: 26, height: FLOOR + 7 },
+  { x: 60, z: 112, radius: 10, blend: 24, height: FLOOR + 5 },
+  { x: 110, z: 95, radius: 12, blend: 30, height: FLOOR + 9 },
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -1005,6 +1140,9 @@ function s(x: number, y: number, z: number, tx: number, tz: number): SpawnPoint 
   throw new Error(`spaceport: no room for a spawn near (${x}, ${y}, ${z})`);
 }
 
+/** A spawn round the bay, `r` out at `deg` round from east, facing its middle. */
+const bayAt = (r: number, deg: number, y: number) => s(Math.floor(BAY.x + Math.cos((deg * Math.PI) / 180) * r), y, Math.floor(BAY.z + Math.sin((deg * Math.PI) / 180) * r), BAY.x, BAY.z);
+
 const POSTS: PostSpec[] = [
   {
     id: 'A',
@@ -1047,21 +1185,16 @@ const POSTS: PostSpec[] = [
   {
     id: 'C',
     name: 'the docking bay',
-    at: { x: 1.5, y: PIT, z: 6.5 },
+    at: { x: 0.5, y: PIT, z: 9.5 },
     radius: 8,
     height: 6,
     owner: null,
+    // On the ring road outside the wall (in through the gates), on the ledge, two down in the pit.
     spawns: [
-      s(-19, FLOOR, -8, 0, 0),
-      s(-19, FLOOR, 9, 0, 0),
-      s(19, FLOOR, -8, 0, 0),
-      s(19, FLOOR, 9, 0, 0),
-      s(-8, FLOOR, 19, 0, 0),
-      s(8, FLOOR, 19, 0, 0),
-      s(-8, FLOOR, -19, 0, 0),
-      s(8, FLOOR, -19, 0, 0),
-      s(-14, PIT, 11, 0, 5),
-      s(14, PIT, 11, 0, 5),
+      ...[0, 90, 180, 270, 165, 345].map((a) => bayAt(ROAD_R - 3, a, FLOOR)),
+      ...[60, 150, 240, 330].map((a) => bayAt(LEDGE_R - 1, a, FLOOR)),
+      s(-13, PIT, 13, 0, 9),
+      s(13, PIT, 13, 0, 9),
     ],
   },
   {
@@ -1110,13 +1243,14 @@ export const SPACEPORT: MapSpec = {
   name: 'Mos Blockley Spaceport',
   blurb: 'A desert spaceport: take the market, the docking bay and the cantina',
   floorY: FLOOR,
-  time: 0.3,
+  time: 0.7,
   ground: { top: 'sand', fill: 'sandstone' },
   structures: [TOWN, backdrop()],
   terraform: TERRAFORM,
   bounds: { min: { x: WEST, y: PIT - 1, z: NORTH }, max: { x: EAST, y: FLOOR + 12, z: SOUTH } },
   posts: POSTS,
-  home: spawnAt(-24, FLOOR + 16, 40, 0, 0),
-  overview: { position: { x: -20, y: FLOOR + 60, z: 95 }, target: { x: 0, y: FLOOR, z: 0 } },
+  // From over the square north of the bay, looking south across it to the wreck beyond the canyon.
+  home: spawnAt(5, FLOOR + 20, -45, -5, 30),
+  overview: { position: { x: 20, y: FLOOR + 55, z: -80 }, target: { x: -5, y: FLOOR, z: 10 } },
   hotspots: [...POSTS.map((p) => ({ ...p.at })), { x: -44, y: FLOOR, z: 0 }, { x: 44, y: FLOOR, z: 0 }, { x: 0, y: FLOOR, z: -36 }, { x: 0, y: FLOOR, z: 36 }],
 };
