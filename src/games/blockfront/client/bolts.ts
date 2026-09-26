@@ -27,6 +27,8 @@ const BOLT = '#ff3b2e';
 const OWN_BODY = 2.2;
 /** A bolt passing this close to our head (and not into us) whizzes by. */
 const NEAR_MISS = 2.6;
+/** Bolts landing further off than this show only their sparks and scorch (a big fight stays cheap). */
+const FAR = 45;
 
 /** A CSS hex colour as linear RGB, times `k` (over 1 glows). */
 function linear(hex: string, k = 1): [number, number, number] {
@@ -183,16 +185,17 @@ function land(client: Client, at: Vec3, normal: Vec3 | null, block: [number, num
   const fx = client.fx;
   const n = normal ?? { x: 0, y: 1, z: 0 };
   const p = { x: at.x + n.x * 0.06, y: at.y + n.y * 0.06, z: at.z + n.z * 0.06 };
+  if (sound) client.audio.play('bolt_hit', { at, volume: 0.8, pitch: 0.9 + Math.random() * 0.2 });
   // The chips, a spark, a puff and the scorched spot (the pit the blaster carves is under it).
   fx.impact(at, normal, block, false, true);
   fx.flare(p, 0.7);
   fx.particles(p, linear(color, 1.4), { count: 9, speed: 5.5, size: 0.045, glow: 2.6, gravity: 14, life: 0.32, drag: 1.5, spread: 0.08, up: 1.2, collide: false });
+  if (dist(at, client.camera.position) > FAR) return;
   fx.particles(p, [1, 0.86, 0.6], { count: 5, speed: 7, size: 0.028, glow: 3, gravity: 18, life: 0.22, spread: 0.05, up: 1, collide: true });
   // Embers glowing in the scorch a moment.
   fx.particles({ x: at.x + n.x * 0.02, y: at.y + n.y * 0.02, z: at.z + n.z * 0.02 }, linear(color, 0.9), { count: 3, speed: 0.08, size: 0.05, glow: 1.4, gravity: 0, life: 0.45, spread: 0.07, up: 0, collide: false });
   // A curl of smoke.
   fx.particles(p, [0.16, 0.15, 0.14], { count: 3, speed: 0.5, size: 0.13, gravity: -1.4, life: 1.1, drag: 2.2, spread: 0.1, up: 0.5, collide: false });
-  if (sound) client.audio.play('bolt_hit', { at, volume: 0.8, pitch: 0.9 + Math.random() * 0.2 });
 }
 
 /** A bolt on someone: sparks and a burn, no blood. */
