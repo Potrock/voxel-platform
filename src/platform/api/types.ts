@@ -534,8 +534,12 @@ export type PadAction = string | null;
 export interface InputApi {
   /** Key held (KeyboardEvent.code: 'KeyW', 'Space', 'ShiftLeft'…). */
   isDown(code: string): boolean;
-  /** Key went down this frame. */
-  pressed(code: string): boolean;
+  /**
+   * Key went down this frame. Nothing reads as pressed while the controls aren't the game's (a
+   * menu open, the pause screen, typing in chat), nor while the player's dead; `{ dead: true }`
+   * hears a dead player's keys too (a vote, the scoreboard, a menu of the game's).
+   */
+  pressed(code: string, opts?: { dead?: boolean }): boolean;
   /** Mouse button held / clicked this frame (0 left, 1 middle, 2 right). */
   button(b: number): boolean;
   buttonPressed(b: number): boolean;

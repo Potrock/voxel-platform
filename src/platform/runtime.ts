@@ -1351,7 +1351,10 @@ export class Runtime {
     const playing = this.mode === 'playing';
     const started = this.frameData?.started ?? false;
     const dead = this.mine(this.frameData)?.dead ?? false;
-    const active = playing && (this.input.locked || this.debugActive) && !dead && !this.gameHud.screenOpen;
+    // The game has the controls (playing, the mouse captured, no screen open): all of them while
+    // they're alive; while they're dead, only what asks for a dead player's keys hears them.
+    const inGame = playing && (this.input.locked || this.debugActive) && !this.gameHud.screenOpen;
+    const active = inGame && !dead;
     this.sfx.hold(started && (this.mode === 'paused' || this.mode === 'console'));
 
     // Mouse look is the client's; the controls and the view go to the host.
@@ -1382,6 +1385,7 @@ export class Runtime {
     // they lasted: walking and vehicles move at once here (prediction), and the server moves them
     // input by input, the same way.
     const input = this.withShots(this.input.snapshot(active, this.view.yaw, this.view.pitch, this.view.viewSeq));
+    if (inGame && dead) input.dead = true;
     const seq = ++this.inputSeq;
     this.inputTimes.set(seq, now / 1000);
     this.inputTimes.delete(seq - 600);
