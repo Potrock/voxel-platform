@@ -14,6 +14,5 @@ export default defineMeta({
     ['RMB', 'place'],
     ['E', 'blocks'],
     ['MMB', 'pick the block you look at'],
-    ['[ ]', 'time of day'],
   ],
 });

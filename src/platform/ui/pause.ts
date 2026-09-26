@@ -14,9 +14,9 @@ export interface PauseGame extends GameControls {
   room: string | null;
   /** The game has rooms of players' own (so an invite link names one, or the public game). */
   instances?: boolean;
-  /** Restarting is offered: only where it's the player's own game to restart (not everyone's). */
+  /** Restarting is offered: only where the server takes it (a game of one's own, not everyone's). */
   restart: boolean;
-  /** The world's clock can be changed (time of day, day length): off where the game fixes the time. */
+  /** The world's clock can be changed (time of day, day length): where the server takes it, and the game doesn't fix the time. */
   clock: boolean;
 }
 

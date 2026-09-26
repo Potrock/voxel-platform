@@ -576,16 +576,17 @@ export class Runtime {
     this.gameHud.setVisible(false);
     this.held.visible = false;
 
-    // The pause menu offers restarting only in a game of the player's own (in the public game it
-    // would restart everyone's), and the world's clock only where the game doesn't fix the time
-    // and it's the player's to change (a building game, or their own game).
+    // The pause menu offers restarting and the world's clock only where the server takes them: in
+    // a game of the player's own (the public game is everyone's), or on a development server (the
+    // clock only where the game doesn't fix the time).
+    const theirs = this.room !== null || import.meta.env.DEV;
     const pauseGame = {
       title: def.title,
       accent: def.accent,
       room: this.room,
       instances: def.instances,
-      restart: this.room !== null,
-      clock: !def.world?.freezeTime && (!!def.player?.build || this.room !== null),
+      restart: theirs,
+      clock: !def.world?.freezeTime && theirs,
       controls: def.controls,
       walks: this.walker,
       keys: { bound: this.settings.keys, game: this.input.keysFor },
