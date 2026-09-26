@@ -49,9 +49,10 @@ export interface ThrowableItem extends ItemBase {
    * `radius` blocks and not behind a wall, the thrower too; `knockback` (default 1); a crater
    * `carve` blocks round (a destructible world's walls bitten into; in any other, whole blocks
    * blown out; default 0, none); and how big the explosion looks and sounds, `size` (1 a small
-   * bang; from 2 a shockwave and a big one; default from `radius`, up to 1.4).
+   * bang; from 2 a shockwave and a big one; default from `radius`, up to 1.4), in `color` (its
+   * fire and ring; default the orange of a fireball).
    */
-  blast?: { radius: number; damage: number | [middle: number, edge: number]; knockback?: number; carve?: number; size?: number };
+  blast?: { radius: number; damage: number | [middle: number, edge: number]; knockback?: number; carve?: number; size?: number; color?: string };
   /**
    * Fire where it goes off (a molotov): flames on the ground `radius` blocks round for `duration`
    * seconds, burning anyone standing in them for `damage` a second (not behind a wall). `color`
@@ -91,7 +92,7 @@ export interface Throwable {
   drag: number;
   radius: number;
   cooldown: number;
-  blast: { radius: number; near: number; far: number; knockback: number; carve: number; size: number } | null;
+  blast: { radius: number; near: number; far: number; knockback: number; carve: number; size: number; color?: string } | null;
   fire: { radius: number; duration: number; damage: number; color: string } | null;
 }
 
@@ -117,7 +118,7 @@ export function throwable(def: ThrowableItem): Throwable {
     drag: Math.max(0, p.drag ?? 0.1),
     radius: Math.min(0.45, Math.max(0.02, p.radius ?? 0.1)),
     cooldown: Math.max(0.05, def.cooldown ?? 0.8),
-    blast: b ? { radius: Math.max(0.5, b.radius), near, far, knockback: b.knockback ?? 1, carve: Math.max(0, b.carve ?? 0), size: Math.min(4, Math.max(0.2, b.size ?? Math.min(1.4, Math.max(1, b.radius / 4)))) } : null,
+    blast: b ? { radius: Math.max(0.5, b.radius), near, far, knockback: b.knockback ?? 1, carve: Math.max(0, b.carve ?? 0), size: Math.min(4, Math.max(0.2, b.size ?? Math.min(1.4, Math.max(1, b.radius / 4)))), ...(b.color && { color: b.color }) } : null,
     fire: def.fire ? { radius: Math.max(0.5, def.fire.radius), duration: Math.max(0, def.fire.duration), damage: def.fire.damage, color: def.fire.color ?? '#ff8a2a' } : null,
   };
   cache.set(def, t);

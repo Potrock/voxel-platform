@@ -1,6 +1,7 @@
 import type { GameMeta } from '@platform';
 import type { ClientGame, GameEntry } from '@platform/client';
 import callofblocky from './callofblocky/meta';
+import blockfront from './blockfront/meta';
 import arena from './arena/meta';
 import starfighter from './starfighter/meta';
 import skyship from './skyship/meta';
@@ -15,6 +16,7 @@ const entry = (meta: GameMeta, load: () => Promise<{ default: ClientGame }>): Ga
 /** The browser's catalog: the games the launcher lists, in order (the first is the default). Each loads its client code when picked. */
 export const games: GameEntry[] = [
   entry(callofblocky, () => import('./callofblocky/client')),
+  entry(blockfront, () => import('./blockfront/client')),
   entry(arena, () => import('./arena/client')),
   entry(starfighter, () => import('./starfighter/client')),
   entry(skyship, () => import('./skyship/client')),
@@ -35,6 +37,8 @@ export async function devGames(): Promise<GameEntry[]> {
     import('./gallery/meta'),
     import('./callofblocky/previews/map.meta'),
     import('./callofblocky/previews/guns.meta'),
+    import('./blockfront/previews/arsenal.meta'),
+    import('./blockfront/previews/map.meta'),
     import('./moves/meta'),
     import('./highnoon/meta'),
     import('./lasertag/meta'),
@@ -47,6 +51,8 @@ export async function devGames(): Promise<GameEntry[]> {
     () => import('./gallery/client'),
     () => import('./callofblocky/previews/map.client'),
     () => import('./callofblocky/previews/guns.client'),
+    () => import('./blockfront/previews/arsenal.client'),
+    () => import('./blockfront/previews/map.client'),
     () => import('./moves/client'),
     () => import('./highnoon/client'),
     () => import('./lasertag/client'),

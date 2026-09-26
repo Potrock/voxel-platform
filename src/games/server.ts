@@ -1,5 +1,6 @@
 import type { GameDefinition } from '@platform';
 import callofblocky from './callofblocky/server';
+import blockfront from './blockfront/server';
 import arena from './arena/server';
 import starfighter from './starfighter/server';
 import skyship from './skyship/server';
@@ -9,7 +10,7 @@ import sandbox from './sandbox/server';
 import heartHunt from './heart-hunt/server';
 
 /** The games a server hosts, as it runs them (shared definition and rules), in the launcher's order. */
-export const games: GameDefinition[] = [callofblocky, arena, starfighter, skyship, bedwars, obby, sandbox, heartHunt];
+export const games: GameDefinition[] = [callofblocky, blockfront, arena, starfighter, skyship, bedwars, obby, sandbox, heartHunt];
 
 /**
  * Development-only games (a development server hosts them when named; the headless tests use
@@ -25,6 +26,8 @@ export async function devGames(): Promise<GameDefinition[]> {
     import('./gallery/server'),
     import('./callofblocky/previews/map.server'),
     import('./callofblocky/previews/guns.server'),
+    import('./blockfront/previews/arsenal.server'),
+    import('./blockfront/previews/map.server'),
     import('./moves/server'),
     import('./highnoon/server'),
     import('./lasertag/server'),

@@ -256,7 +256,14 @@ export interface ClientFx {
   shake(strength: number, duration?: number): void;
   flash(color: string, strength?: number, duration?: number): void;
   shockwave(at: PlainVec3, radius: number, color?: string): void;
-  tracer(from: PlainVec3, to: PlainVec3, color?: string): void;
+  /**
+   * A shot's streak racing from `from` to `to`: by default a bullet's (a thin line 5 blocks long at
+   * 360 blocks a second, 0.06 across, glowing 6 times its colour); `speed` (blocks a second),
+   * `length` and `width` (blocks) and `glow` make it something else (a blaster's bolt:
+   * `{ speed: 140, length: 2, width: 0.13 }`, slow enough to watch fly; a lower `glow` keeps a
+   * colour deep rather than white-hot).
+   */
+  tracer(from: PlainVec3, to: PlainVec3, color?: string, opts?: { speed?: number; length?: number; width?: number; glow?: number }): void;
   impact(at: PlainVec3, normal: PlainVec3 | null, color: [number, number, number], body?: boolean, mark?: boolean): void;
   /** A hot glow for a moment (a few hundredths of a second), facing the camera: `size` blocks across. */
   flare(at: PlainVec3, size?: number): void;

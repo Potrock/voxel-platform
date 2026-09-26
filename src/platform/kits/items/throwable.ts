@@ -179,7 +179,7 @@ function throwables1(host: ItemHost): Throwables {
     const b = l.t.blast;
     if (b) {
       h.guard(() => h.blast(at, { reach: b.radius, near: b.near, far: b.far, knockback: b.knockback, by: l.by, weapon: l.item }));
-      game.fx.explosion(at, { size: b.size });
+      game.fx.explosion(at, { size: b.size, color: b.color });
       if (b.carve > 0) game.world.explode(at, b.carve, { effect: false, by: l.by });
     }
     const fire = l.t.fire;

@@ -508,6 +508,18 @@ export interface OrbitOptions {
   /** How close and how far the wheel takes it. Default 0 and 30. */
   min?: number;
   max?: number;
+  /**
+   * Over the shoulder (a third-person shooter's camera): the camera this far to the side and up from
+   * straight behind the point it circles, across and up the view, in blocks (`{ right: 0.8, up:
+   * 0.3 }`). The player's figure then stands clear of the middle of the screen, and their aim
+   * converges on what's there: from their eyes to the first block or body under the crosshair, so
+   * what they shoot (and where their figure looks) is what the crosshair is on. Their controls
+   * send that aim, so everything aimed (guns, throws, blades, the game's own `player.look`) goes
+   * there, online too.
+   */
+  shoulder?: { right: number; up: number };
+  /** The wheel zooms it (default true); false keeps the wheel for the hotbar, the camera at `distance`. */
+  wheel?: boolean;
 }
 
 /** A controller's buttons (the standard layout: Xbox names; `Back` is View, `Start` is Menu). */

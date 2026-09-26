@@ -809,7 +809,7 @@ export class GameHud implements Omit<HudApi, 'marker' | 'radar' | 'scoreboard' |
         const dx = a.from.x - camera.position.x;
         const dz = a.from.z - camera.position.z;
         const ang = Math.atan2(-dx, -dz) - yaw;
-        a.el.style.transform = `translate(-50%, -50%) rotate(${-ang}rad) translateY(-min(22vh, 180px))`;
+        a.el.style.transform = `translate(-50%, -50%) rotate(${-ang}rad) translateY(calc(-1 * min(22vh, 180px)))`;
         a.el.style.opacity = String(Math.min(1, (1.6 - a.age) / 0.6));
       }
     }

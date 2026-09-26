@@ -95,7 +95,9 @@ export class Avatars {
       const eye = { x: p.x, y: p.y + 1.62, z: p.z };
       // A red flash when their health drops.
       const h = this.hurt.get(p.id) ?? { health: p.health, flash: 0 };
-      if (p.health < h.health) h.flash = 1;
+      // As strong as the hit: a quarter of their health or more flashes them red; a scratch off a
+      // tough one (a hero under fire) barely tints them, so steady fire doesn't paint them red.
+      if (p.health < h.health) h.flash = Math.max(h.flash, Math.min(1, 0.3 + (3 * (h.health - p.health)) / Math.max(1, p.maxHealth)));
       h.health = p.health;
       h.flash = Math.max(0, h.flash - 0.05);
       this.hurt.set(p.id, h);
