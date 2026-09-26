@@ -11,11 +11,12 @@ import type { Client } from '@platform/client';
  *   alarm as it overheats (`blaster_overheat`).
  * - **Bolts** (the bolts kit plays them where they land): a zap and a sizzle on a wall
  *   (`bolt_hit`), a burn on someone (`bolt_burn`), and the whizz of one going by (`bolt_whizz`).
- * - **The detonator**: arming beeps, the toss, a clink off the ground.
+ * - **The detonator**: arming beeps, the toss, a clink off the ground, and its zing going off.
  * - **UI**: a post gained and lost, a hero ready, low reinforcements, deploying, a heartbeat at
  *   low health; the match's opening and victory / defeat stingers (short brass fanfares).
- * - **Ambience** (`client/ambience.ts` plays them): desert wind, a firefight far off, a fighter
- *   screaming over.
+ * - **Ambience** (`client/ambience.ts` plays them): desert wind, a firefight far off.
+ * - **The sky** (`skies.ts` plays them as starfighters pass over): the eye fighters' scream,
+ *   the wing fighters' roar, their cannons far off.
  *
  * (Voices stop after three seconds: the platform lets each play go then.)
  */
@@ -221,11 +222,40 @@ export function defineSounds(client: Client) {
     s.tone({ wave: 'sine', from: 70, to: 30, duration: 1.2, volume: 0.35 });
     s.noise({ duration: 1.4, filter: 'lowpass', from: 500, to: 60, volume: 0.22 });
   });
-  a.define('amb_flyby', (s) => {
-    // A fighter screaming over: a wavering howl, falling as it passes, through a sweeping band.
+
+  // ---- The sky (skies.ts plays them as starfighters pass over) ----
+  a.define('amb_scream', (s) => {
+    // An eye fighter: a wavering howl, falling as it passes, through a sweeping band.
     const p = s.pitch;
     for (const d of [1, 1.013, 0.988]) s.tone({ wave: 'sawtooth', from: 820 * d * p, to: 360 * d * p, duration: 2.4, volume: 0.05, attack: 0.9, bandpass: { freq: 900 * p, to: 500, q: 1.2 }, vibrato: { rate: 23, depth: 18 } });
     s.noise({ duration: 2.2, delay: 0.5, filter: 'bandpass', from: 1600, to: 400, q: 0.8, volume: 0.1 });
     s.tone({ wave: 'sine', from: 140 * p, to: 60 * p, duration: 2, delay: 0.6, volume: 0.12, attack: 0.5 });
+  });
+  a.define('amb_roar', (s) => {
+    // A wing fighter: a deep engine roar under a steady whine, both falling as it passes.
+    const p = s.pitch;
+    s.noise({ duration: 2.4, filter: 'lowpass', from: 900 * p, to: 260, volume: 0.36 });
+    for (const d of [1, 1.02]) s.tone({ wave: 'sawtooth', from: 95 * d * p, to: 62 * d * p, duration: 2.3, volume: 0.15, attack: 0.8, lowpass: 700 });
+    s.tone({ wave: 'triangle', from: 1450 * p, to: 980 * p, duration: 2.1, delay: 0.2, volume: 0.07, attack: 0.7, vibrato: { rate: 6, depth: 8 } });
+  });
+  a.define('amb_sky_laser', (s) => {
+    // A wing fighter's cannon, far off: a hard, short "pew".
+    const p = s.pitch;
+    s.tone({ wave: 'sawtooth', from: 1800 * p, to: 240 * p, duration: 0.16, volume: 0.22, lowpass: 2600 });
+    s.noise({ duration: 0.05, filter: 'lowpass', from: 1500, to: 500, volume: 0.15 });
+  });
+  a.define('amb_sky_laser_imp', (s) => {
+    // An eye fighter's cannon: lower, a harsher crackle.
+    const p = s.pitch;
+    s.tone({ wave: 'square', from: 1300 * p, to: 180 * p, duration: 0.15, volume: 0.16, lowpass: 2000 });
+    s.noise({ duration: 0.08, filter: 'bandpass', from: 1400, to: 700, q: 1.5, volume: 0.2 });
+  });
+
+  // ---- The thermal detonator going off (client/detonator.ts, over the platform's blast) ----
+  a.define('detonator_blast', (s) => {
+    // A bright electric zing over the bang, and a hum dying away.
+    s.tone({ wave: 'sawtooth', from: 3200, to: 900, duration: 0.35, volume: 0.12, bandpass: { freq: 2600, to: 1200, q: 2 } });
+    s.noise({ duration: 0.5, filter: 'highpass', from: 7000, to: 3000, volume: 0.22 });
+    s.tone({ wave: 'sine', from: 180, to: 60, duration: 0.9, delay: 0.05, volume: 0.25 });
   });
 }
