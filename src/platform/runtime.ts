@@ -151,6 +151,8 @@ export class Runtime {
   private presenter!: Presenter;
   /** The newest frame from the host. */
   private frameData: SimFrame | null = null;
+  /** The world's blocks as flights (and an over-the-shoulder aim) meet them. */
+  private flightWorld: ReturnType<typeof flightWorld> | null = null;
   /** The host has set the game up and placed the player. */
   private hostReady = false;
   private requests = new Map<number, (value: unknown) => void>();
@@ -491,6 +493,7 @@ export class Runtime {
     this.throwsCtl = new ThrowController(this.content.items);
     // Throwables fly here as the host flies them; the client code draws them (see `client.thrown`).
     const flying = flightWorld(world, this.registry);
+    this.flightWorld = flying;
     this.flights = new Flights(this.content.items, flying, {
       bounce: (key, item, at, speed) => this.emit({ t: 'bounce', key, item, at, speed }),
       end: (key, item, at) => this.emit({ t: 'thrownEnd', key, item, at }),
@@ -519,6 +522,7 @@ export class Runtime {
 
     this.view = new PlayerCamera(this.camera);
     this.view.clearance = (from, dir, max) => this.clearance(from, dir, max);
+    this.view.aimAt = (from, dir, max) => this.aimAt(from, dir, max);
     this.replayView = new PlayerCamera(this.camera);
     this.held = new FirstPersonLayer(this.textures.albedo, this.textures.material, this.graphics, this.camera, this.content.animations, (e) => this.client?.emit(e));
     this.renderer.overlay = { scene: this.held.view.scene, camera: this.held.view.camera };
@@ -1961,6 +1965,21 @@ export class Runtime {
     const p = o.player === this.playerId ? me : f.players.find((x) => x.id === o.player);
     const off = o.offset ?? [0, 1.62, 0];
     return p ? new THREE.Vector3(p.x + off[0], p.y + off[1], p.z + off[2]) : null;
+  }
+
+  /**
+   * What an over-the-shoulder aim converges on (`PlayerCamera.aimAt`): how far along the camera's
+   * line the first solid block or someone else's body is (as the newest frame has them), or null.
+   */
+  private aimAt(from: THREE.Vector3, dir: THREE.Vector3, max: number): number | null {
+    const h = this.flightWorld?.hit(from.x, from.y, from.z, dir.x, dir.y, dir.z, max);
+    let best = h ? h.t : max;
+    for (const p of this.frameData?.players ?? []) {
+      if (p.id === this.playerId || p.dead) continue;
+      const t = rayBox(from, dir, { x: p.x - 0.4, y: p.y, z: p.z - 0.4 }, { x: p.x + 0.4, y: p.y + (p.sneaking ? 1.6 : 1.9), z: p.z + 0.4 });
+      if (t !== null && t < best) best = t;
+    }
+    return best < max ? best : null;
   }
 
   /** How far a third-person camera can go from a point along a direction before a block (solid props don't stop it). */

@@ -18,6 +18,8 @@ import { VehicleSim } from './vehicle';
 
 const EYE = 1.62;
 const SNEAK_EYE = 1.27;
+/** A number, or the fallback for anything else (a game's options, to keep the frame clean). */
+const finiteOr = (v: unknown, or: number) => (typeof v === 'number' && Number.isFinite(v) ? v : or);
 
 /** One player as their client draws them (camera, hand, hearts, hotbar). */
 export interface PlayerFrame {
@@ -103,7 +105,7 @@ export interface PlayerFrame {
    * on it, and the wheel's range. `seq` counts up each time the game sets it (their screen then
    * starts from `distance`; the wheel is theirs after that).
    */
-  orbit: { seq: number; prop?: number; player?: string; offset: [number, number, number] | null; distance: number; min: number; max: number } | null;
+  orbit: { seq: number; prop?: number; player?: string; offset: [number, number, number] | null; distance: number; min: number; max: number; shoulder?: [number, number]; wheel?: false } | null;
 }
 
 export interface PlayerSimParts {
@@ -508,7 +510,16 @@ export class PlayerSim {
     const off = o.offset ? ([o.offset.x, o.offset.y, o.offset.z] as [number, number, number]) : null;
     const max = Math.max(0, o.max ?? 30);
     const min = Math.min(max, Math.max(0, o.min ?? 0));
-    this.orbit = { seq: ++this.orbitSeq, ...who, offset: off, distance: Math.min(max, Math.max(min, o.distance ?? 0)), min, max };
+    this.orbit = {
+      seq: ++this.orbitSeq,
+      ...who,
+      offset: off,
+      distance: Math.min(max, Math.max(min, o.distance ?? 0)),
+      min,
+      max,
+      ...(o.shoulder && { shoulder: [finiteOr(o.shoulder.right, 0), finiteOr(o.shoulder.up, 0)] as [number, number] }),
+      ...(o.wheel === false && { wheel: false as const }),
+    };
   }
 
   /** Gone from the game: their body leaves the world. */

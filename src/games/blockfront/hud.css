@@ -1,0 +1,24 @@
+/*
+ * Blockfront II's HUD look: dark glass panels edged in the crawl's yellow, over the platform's HUD
+ * (see docs/PLATFORM.md, "The HUD's look"). A first cut.
+ */
+.stat,
+.objective {
+  background: rgba(11, 15, 20, 0.72);
+  color: #fff;
+  border: 1px solid rgba(255, 232, 31, 0.55);
+  border-radius: 3px;
+}
+.banner-title {
+  font-family: var(--pixel);
+  letter-spacing: 0.12em;
+  color: var(--hud-accent);
+  text-shadow: 0 0 18px rgba(255, 232, 31, 0.45), 0 2px 0 #000;
+}
+.menu-card,
+.result-card,
+.scoreboard {
+  background: rgba(11, 15, 20, 0.9);
+  color: #e9edf2;
+  border: 1px solid rgba(255, 232, 31, 0.6);
+}

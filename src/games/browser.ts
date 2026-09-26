@@ -1,6 +1,7 @@
 import type { GameMeta } from '@platform';
 import type { ClientGame, GameEntry } from '@platform/client';
 import callofblocky from './callofblocky/meta';
+import blockfront from './blockfront/meta';
 import arena from './arena/meta';
 import starfighter from './starfighter/meta';
 import skyship from './skyship/meta';
@@ -15,6 +16,7 @@ const entry = (meta: GameMeta, load: () => Promise<{ default: ClientGame }>): Ga
 /** The browser's catalog: the games the launcher lists, in order (the first is the default). Each loads its client code when picked. */
 export const games: GameEntry[] = [
   entry(callofblocky, () => import('./callofblocky/client')),
+  entry(blockfront, () => import('./blockfront/client')),
   entry(arena, () => import('./arena/client')),
   entry(starfighter, () => import('./starfighter/client')),
   entry(skyship, () => import('./skyship/client')),
