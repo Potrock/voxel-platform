@@ -1,9 +1,11 @@
 import type { BlockRef, Vec3 } from '@platform';
 
+export { hash } from './kit';
+
 /**
  * What Blockfront's maps are built with: a canvas (a Blueprint, or a place on one moved and
  * turned), the block-state helpers, and shapes that are fiddly by hand: rounded walls, domes
- * smoothed with slabs and stairs, pixel lettering.
+ * smoothed with slabs and stairs, pixel sprites.
  */
 
 export type Facing = 'north' | 'east' | 'south' | 'west';
@@ -89,13 +91,6 @@ export function box(c: Canvas, x0: number, y0: number, z0: number, x1: number, y
       }
 }
 
-/** A steady pseudo-random number in [0, 1) for a column (weathering, scatter). */
-export function hash(x: number, z: number, k = 0): number {
-  let h = Math.imul(x, 374761393) + Math.imul(z, 668265263) + Math.imul(k, 1274126177);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
 /** Distance from a round thing's middle (cx, cz: its centre, on a block's middle or corner) to a block's. */
 export const dist = (x: number, z: number, cx: number, cz: number) => Math.hypot(x + 0.5 - cx, z + 0.5 - cz);
 
@@ -160,44 +155,8 @@ export function dome(c: Canvas, cx: number, cz: number, r: number, h: number, y0
 }
 
 // ---------------------------------------------------------------------------------------------
-// Lettering
+// Sprites
 // ---------------------------------------------------------------------------------------------
-
-export const FONT: Record<string, string[]> = {
-  A: ['.X.', 'X.X', 'XXX', 'X.X', 'X.X'],
-  B: ['XX.', 'X.X', 'XX.', 'X.X', 'XX.'],
-  C: ['.XX', 'X..', 'X..', 'X..', '.XX'],
-  D: ['XX.', 'X.X', 'X.X', 'X.X', 'XX.'],
-  E: ['XXX', 'X..', 'XX.', 'X..', 'XXX'],
-  F: ['XXX', 'X..', 'XX.', 'X..', 'X..'],
-  G: ['.XX', 'X..', 'X.X', 'X.X', '.XX'],
-  H: ['X.X', 'X.X', 'XXX', 'X.X', 'X.X'],
-  I: ['XXX', '.X.', '.X.', '.X.', 'XXX'],
-  K: ['X.X', 'X.X', 'XX.', 'X.X', 'X.X'],
-  L: ['X..', 'X..', 'X..', 'X..', 'XXX'],
-  M: ['X...X', 'XX.XX', 'X.X.X', 'X...X', 'X...X'],
-  N: ['X..X', 'XX.X', 'X.XX', 'X..X', 'X..X'],
-  O: ['.X.', 'X.X', 'X.X', 'X.X', '.X.'],
-  P: ['XX.', 'X.X', 'XX.', 'X..', 'X..'],
-  R: ['XX.', 'X.X', 'XX.', 'X.X', 'X.X'],
-  S: ['.XX', 'X..', '.X.', '..X', 'XX.'],
-  T: ['XXX', '.X.', '.X.', '.X.', '.X.'],
-  U: ['X.X', 'X.X', 'X.X', 'X.X', 'XXX'],
-  V: ['X.X', 'X.X', 'X.X', 'X.X', '.X.'],
-  W: ['X...X', 'X...X', 'X.X.X', 'XX.XX', 'X...X'],
-  Y: ['X.X', 'X.X', '.X.', '.X.', '.X.'],
-  '9': ['XXX', 'X.X', 'XXX', '..X', 'XXX'],
-  '4': ['X.X', 'X.X', 'XXX', '..X', '..X'],
-  ' ': ['.', '.', '.', '.', '.'],
-};
-
-/** Rows of a text (top first) laid out left to right with 1-column gaps. */
-export function layout(text: string): string[] {
-  const glyphs = [...text].map((ch) => FONT[ch] ?? FONT[' ']);
-  const rows: string[] = [];
-  for (let r = 0; r < 5; r++) rows.push(glyphs.map((g) => g[r]).join('.'));
-  return rows;
-}
 
 /**
  * Stamp a sprite (rows top first) onto a plane: `at(u, v)` maps column u (left to right as the

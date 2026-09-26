@@ -13,11 +13,11 @@ import * as ships from './ships';
  *   south onto the back ways.
  * - **B, the market** (south-west, the Rebels' at the start): a paved square of stalls under
  *   striped awnings round a cistern, shops on every side.
- * - **C, the docking bay** (the middle, nobody's): a round pit three deep inside a ring wall, a
- *   battered saucer freighter parked in it (its ramp comes down into the fight, its back is high
- *   ground), crates and fuel drums round the post.
+ * - **C, the docking bay** (the middle, nobody's): a round pit three deep inside a ring wall with
+ *   six gates, a battered saucer freighter parked in it (its ramp comes down into the fight, its
+ *   back is high ground), crates and fuel drums round the post.
  * - **D, the cantina** (north-east, the Empire's at the start): a great domed hall, the bar round
- *   its middle pillar, five ways in.
+ *   its middle pillar, six ways in (one through a little domed porch off the main street).
  * - **E, the Imperial garrison** (east, the Empire's for good): durasteel walls round a landing
  *   pad, a shuttle on it, barracks either side.
  *
@@ -26,8 +26,11 @@ import * as ships from './ships';
  * north door along the north alley, across the square north of the bay, past the back of the
  * cantina); and the south way, its mirror. The town is laid out with a half-turn's symmetry about
  * the bay (the market's square answers the cantina's hall), so neither side has the better road.
- * Rooftops: a row along the main street on each side (stairs up, planks between), the ring wall
- * round the bay (ladders), the terraces over the market and by the cantina.
+ * Rooftops: a row along the main street on each side (stairs up, planks between), the walk along
+ * the top of the bay's ring wall (ladders), the hangar's gantry, the freighter's back. Everything
+ * else is built so nothing a bot can climb from the street reaches a roof (every house is at least
+ * five high), and nowhere it can drop into is a pocket it can't walk out of (`fillPockets`).
+ * Beyond the canyon's rim the dunes roll off to a star destroyer's wreck lying on its side.
  */
 
 const FLOOR = 64;
@@ -146,8 +149,6 @@ interface HouseOpts {
   gaps?: Door[];
   /** An awning over each real or painted door. */
   awning?: BlockRef;
-  /** Keep out of these columns (a round road beside it): the footprint's edge follows them. */
-  clip?: (x: number, z: number) => boolean;
   /** A vaporator on the roof. */
   vaporator?: boolean;
   /** A barrel vault along its length, in cream plaster. */
@@ -172,14 +173,15 @@ function doorCells(d: Door, x0: number, z0: number, x1: number, z1: number): [nu
 
 /**
  * A house on the footprint x0..x1, z0..z1: plaster or adobe walls with a band of dust at their
- * foot, round windows at head height (open, if it's hollow), the corners cut, a flat roof; a dome
- * on it, a parapet round it, stairs up the outside, doors under awnings, as asked.
+ * foot, round windows at head height (open, if it's hollow), the corners cut, a flat roof; as
+ * asked, a dome, a barrel vault or an upper storey on it, a parapet round it, stairs up the
+ * outside, doors (or niches) under awnings, odds and ends on the roof.
  */
 function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
   const top = FLOOR + o.h - 1;
   const mat = o.mat ?? 'plaster';
   const win = WINDOWS[mat];
-  const inside = (x: number, z: number) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && !(o.clip?.(x, z) ?? false) && !((x === x0 || x === x1) && (z === z0 || z === z1));
+  const inside = (x: number, z: number) => x >= x0 && x <= x1 && z >= z0 && z <= z1 && !((x === x0 || x === x1) && (z === z0 || z === z1));
   const edge = (x: number, z: number) => !inside(x + 1, z) || !inside(x - 1, z) || !inside(x, z + 1) || !inside(x, z - 1);
   const doors = new Set<string>();
   const fakes = new Set<string>();
@@ -205,16 +207,14 @@ function house(x0: number, z0: number, x1: number, z1: number, o: HouseOpts) {
       // A softened rim round a roof nobody's meant to walk (a slab course on plaster).
       if (e && !o.parapet && mat === 'plaster') set(x, top, z, slab('plaster', true));
     }
-  // Arched tops on the real doors, awnings over all of them.
+  // Arched tops on the doors and niches (cream plaster, whatever the walls), awnings over them.
   for (const d of [...(o.doors ?? []), ...(o.fake ?? [])]) {
     const cells = doorCells(d, x0, z0, x1, z1);
     const along: Facing = d.side === 'north' || d.side === 'south' ? 'west' : 'north';
-    {
-      const [ax, az] = cells[0];
-      const [bx, bz] = cells[cells.length - 1];
-      set(ax, FLOOR + 2, az, stairs('plaster', along, true));
-      set(bx, FLOOR + 2, bz, stairs('plaster', OPPOSITE[along], true));
-    }
+    const [ax, az] = cells[0];
+    const [bx, bz] = cells[cells.length - 1];
+    set(ax, FLOOR + 2, az, stairs('plaster', along, true));
+    set(bx, FLOOR + 2, bz, stairs('plaster', OPPOSITE[along], true));
     if (o.awning) {
       const [sx, sz] = STEP[d.side];
       for (let i = -1; i <= cells.length; i++) {
@@ -334,7 +334,7 @@ function hut(cx: number, cz: number, r: number, h: number, o: { mat?: string; do
   }
 }
 
-/** A plank bridge between two roofs at feet level y, over x0..x1, z0..z1, poles under its corners. */
+/** A plank bridge between two roofs at feet level y, over x0..x1, z0..z1. */
 function bridge(x0: number, z0: number, x1: number, z1: number, y: number) {
   fill(x0, y - 1, z0, x1, y - 1, z1, slab('spruce', true));
 }
@@ -482,7 +482,7 @@ function market() {
 function bay() {
   disc(BAY.x, BAY.z, ROAD_R, (x, z, d) => {
     if (d < PIT_R) {
-      // The pit: its floor three down, a ring of landing lights, the old scorch.
+      // The pit: its floor three down, a ring of landing lights, sand blown in here and there.
       const ringed = Math.abs(d - 16.5) < 0.5;
       set(x, PIT - 1, z, ringed && (x + z) % 3 === 0 ? 'pad_amber' : ringed ? 'ashlar' : hash(x >> 1, z >> 1, 30) < 0.05 ? 'packed_sand' : 'paving');
       for (let y = PIT; y <= G; y++) set(x, y, z, 'air');
@@ -509,6 +509,14 @@ function bay() {
       if (along > 0 && Math.abs(across) < 2.5) for (let y = FLOOR; y < FLOOR + 4; y++) set(x, y, z, 'air');
       if (along > 0 && Math.abs(Math.abs(across) - 3.5) < 0.5 && d > WALL_R - 0.6) set(x, FLOOR + 4, z, 'pad_amber');
     });
+    // Cargo on the ledge either side of it, inside: somewhere to get to when coming through.
+    for (const side of [-1, 1]) {
+      const a = t + side * (4.2 / (LEDGE_R - 1.5));
+      const x = Math.floor(BAY.x + Math.cos(a) * (LEDGE_R - 1.5));
+      const z = Math.floor(BAY.z + Math.sin(a) * (LEDGE_R - 1.5));
+      set(x, FLOOR, z, side > 0 ? 'crate_metal' : 'fuel_drum');
+      set(x, FLOOR + 1, z, 'crate');
+    }
     // A screen out on the ring road in front of it: nobody sees in through it from the street.
     disc(BAY.x, BAY.z, ROAD_R, (x, z) => {
       const along = (x + 0.5 - BAY.x) * c + (z + 0.5 - BAY.z) * sn;
@@ -561,7 +569,7 @@ function bay() {
   props.drums(bp, 9, PIT, -12, 3, 17);
   props.crates(bp, -13, PIT, -9, 2, 2, 1, 18);
   fill(1, PIT, 12, 4, PIT, 13, 'crate_metal');
-  props.commandPost(bp, 1, PIT, 6, 'pad_blue', 2);
+  props.commandPost(bp, 0, PIT, 9, 'pad_blue', 2);
   // Lamps round the ledge.
   for (let a = 0; a < 16; a++) {
     const t = (a / 16) * Math.PI * 2 + 0.2;
