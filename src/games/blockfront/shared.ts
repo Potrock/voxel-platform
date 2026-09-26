@@ -1,5 +1,6 @@
 import { defineShared, Models } from '@platform';
 import hudCss from './hud.css?raw';
+import { HERO_ABILITIES } from './heroes/abilities';
 import { MAPS, WORLD } from './map';
 import meta from './meta';
 import { TROOPERS } from './models';
@@ -54,6 +55,9 @@ export const shared = defineShared({
       edgeGuard: false,
       slide: { speed: 11, time: 0.75, friction: 1.3, cooldown: 0.6 },
       mantle: 1.1,
+      // The heroes' moves (a Force jump, the guard's pace, Luke's rush and leap, the powers' cooldowns):
+      // every player has them, resting until the server makes them a hero (`heroes/abilities.ts`).
+      abilities: HERO_ABILITIES,
     },
   },
   hud: {
