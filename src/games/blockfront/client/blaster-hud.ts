@@ -166,7 +166,10 @@ export function blasterHud(): ClientKit {
       const aim = st.aim ?? 0;
       const reload = st.reload ?? -1;
       // A vent starting: from how hot, and whether it overheated (empty) or R vented it early.
-      if (reload >= 0 && !venting) venting = { from: 1 - st.mag / size, over: st.mag === 0 || lastMag === 0 };
+      if (reload >= 0 && !venting) {
+        venting = { from: 1 - st.mag / size, over: st.mag === 0 || lastMag === 0 };
+        if (venting.over && !client.replay?.playing) client.audio.play('blaster_overheat', { volume: 0.9 });
+      }
       if (reload < 0) venting = null;
       lastMag = st.mag;
       const heat = venting ? venting.from * (1 - reload) : 1 - st.mag / size;
