@@ -12,7 +12,7 @@ import { STREAK_IDS, STREAKS, type StreakId } from './kinds';
 
 /**
  * The killstreaks you steer, on the server: seven in a row earns a Hellstorm, ten an Attack Chopper
- * (free-for-all and Team Deathmatch). Earned ones wait until called in with 4 (a controller's
+ * (free-for-all and Team Deathmatch). Earned ones wait until called in with 5 (a controller's
  * D-pad left), the latest first, and last until the match is over.
  *
  * Calling one in puts the fighter's controls and camera in it (`drive(..., { remote: true })`:
@@ -25,7 +25,9 @@ import { STREAK_IDS, STREAKS, type StreakId } from './kinds';
  *   so and craters the walls.
  * - **Attack Chopper**: forty seconds over the map, its cannon firing explosive rounds (tracers
  *   anyone can see; each goes off where it lands). Anyone it's hostile to can shoot it down (their
- *   guns' hits count, `shot`), for points; it shows on their screens, with its health.
+ *   guns' hits count, `shot`, falling off with range), for points; it shows on their screens, with
+ *   its health. Bots take a moment to notice it, fire up at it in bursts, and their bullets do
+ *   less damage to it than people's (`BOT_CHOPPER_DAMAGE`).
  *
  * Kills with either are the pilot's (the blasts are theirs, with the streak as the weapon: the
  * feed shows its picture, and they count toward the next streak). The pilot's own blasts don't
@@ -38,6 +40,15 @@ const CHOPPER_HP = 900;
 const ROUND_SPEED = 160;
 /** Points for shooting a chopper down. */
 const SHOT_DOWN = 200;
+/**
+ * Bots' bullets take this share of their damage off a chopper (people's count in full), so the
+ * street's bots don't shoot a pilot out of the sky in a second or two.
+ */
+const BOT_CHOPPER_DAMAGE = 0.45;
+/** Seconds a bot takes to start shooting at a chopper it's seen: an unskilled one's, a skilled one's. */
+const BOT_NOTICE: [number, number] = [2.2, 1];
+/** Seconds a bot keeps its aim on a chopper it's lost sight of (or turned from, to fight someone). */
+const AIM_MEMORY = 3;
 
 const Y = new math.Vector3(0, 1, 0);
 const NEG_Z = new math.Vector3(0, 0, -1);
@@ -91,12 +102,17 @@ export interface StreakHooks {
   award(f: Fighter, points: number, title: string): void;
 }
 
-/** How much a gun's hit takes off a chopper: its full damage (a shotgun: a few of its pellets). */
-function chopperDamage(weapon: string): number {
-  const w = WEAPONS[weapon] as { kind?: string; damage?: number | [number, number]; pellets?: number } | undefined;
+/**
+ * How much a gun's hit takes off a chopper `dist` blocks away: its damage at that range, falling
+ * off as it does on a person (a shotgun: a few of its pellets).
+ */
+function chopperDamage(weapon: string, dist: number): number {
+  const w = WEAPONS[weapon] as { kind?: string; damage?: number | [number, number]; falloff?: [number, number]; pellets?: number } | undefined;
   if (!w || w.kind !== 'gun' || w.damage === undefined) return 0;
-  const d = Array.isArray(w.damage) ? w.damage[0] : w.damage;
-  return d * Math.min(3, w.pellets ?? 1);
+  const [near, far] = Array.isArray(w.damage) ? w.damage : [w.damage, w.damage];
+  const [a, b] = w.falloff ?? [20, 50];
+  const k = b > a ? Math.min(1, Math.max(0, (dist - a) / (b - a))) : 0;
+  return (near + (far - near) * k) * Math.min(3, w.pellets ?? 1);
 }
 
 const view = { at: new math.Vector3(), dir: new math.Vector3() };
@@ -113,6 +129,11 @@ export class Streaks {
   private markAt = 0;
   /** Where each pilot's last streak was (for the kill cams of its kills): by pilot id. */
   private recent = new Map<string, { kind: StreakId; at: Vec3; dir: Vec3 }>();
+  /**
+   * Bots shooting up at a chopper: which, their next burst (from `next` to `until`), how far off
+   * it's aimed, and when they last had it in sight (they keep their place in it for a moment).
+   */
+  private aimers = new Map<Player, { chopper: number; next: number; until: number; err: Vec3; seen: number }>();
 
   constructor(
     private game: GameContext,
@@ -139,7 +160,7 @@ export class Streaks {
       if (!this.botAt.has(p)) this.botAt.set(p, this.game.clock.now + 1.5 + Math.random() * 3);
       return;
     }
-    p.hud.banner(`${STREAKS[id].name.toUpperCase()} READY`, 'Press 4 to call it in', { color: COLORS.gold, duration: 2.6 });
+    p.hud.banner(`${STREAKS[id].name.toUpperCase()} READY`, 'Press 5 to call it in', { color: COLORS.gold, duration: 2.6 });
     p.audio.play('streak_ready');
   }
 
@@ -171,9 +192,9 @@ export class Streaks {
     for (const f of match.fighters.values()) {
       const p = f.player;
       if (!p.bot) {
-        if (!this.on || !p.input.pressed('Digit4')) continue;
-        // (4 isn't the lethal's slot while there are streaks to call in.)
-        p.input.consume('Digit4');
+        if (!this.on || !p.input.pressed('Digit5')) continue;
+        // (5 isn't the empty fifth slot while there are streaks to call in: the hand keeps what it holds.)
+        p.input.consume('Digit5');
         if (!p.alive || this.flying(p)) continue;
         if (f.streaks.length) this.callIn(f, f.streaks.pop()!);
         else p.hud.toast(`${STREAKS.hellstorm.name} at ${STREAKS.hellstorm.kills} kills in a row, ${STREAKS.chopper.name} at ${STREAKS.chopper.kills}`);
@@ -341,6 +362,7 @@ export class Streaks {
     this.leaving = [];
     this.botAt.clear();
     this.recent.clear();
+    this.aimers.clear();
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -495,7 +517,7 @@ export class Streaks {
       const t = this.hitsChopper(fl.state as ChopperState, from, dir);
       if (t === null || t > 150) continue;
       if (this.game.world.raycast(from, dir, t)) continue;
-      const dmg = chopperDamage(weapon);
+      const dmg = chopperDamage(weapon, t) * (by.bot ? BOT_CHOPPER_DAMAGE : 1);
       if (!dmg) continue;
       fl.hp -= dmg;
       fl.prop.flash('#ffffff', 0.07);
@@ -545,22 +567,44 @@ export class Streaks {
   }
 
   /** Bots with nobody else to shoot fire up at an enemy chopper they can see. */
+  /**
+   * Bots with nobody else to fight shoot up at an enemy chopper in sight: once they've taken it in
+   * (`BOT_NOTICE`), in short bursts with pauses between, each burst aimed off by an error of its
+   * own (more for an unskilled bot), so whole bursts can go wide.
+   */
   private upAtChoppers() {
     const g = this.game;
+    const now = g.clock.now;
+    const busy = new Set<Player>();
     for (const fl of this.flights) {
       if (fl.kind !== 'chopper') continue;
       const s = fl.state as ChopperState;
       for (const b of g.bots.all) {
-        if (!b.alive || this.flying(b) || !hostile(b, fl.pilot)) continue;
+        if (busy.has(b) || !b.alive || this.flying(b) || !hostile(b, fl.pilot)) continue;
         const mind = this.hooks.bots.mind(b);
         if (!mind || mind.target) continue;
         const e = b.eye;
         if (Math.hypot(s.x - e.x, s.y - e.y, s.z - e.z) > 75 || !g.world.lineOfSight(e, { x: s.x, y: s.y, z: s.z })) continue;
-        const miss = (1 - mind.skill) * 2.5;
-        b.controls.lookAt({ x: s.x + (Math.random() - 0.5) * miss, y: s.y + (Math.random() - 0.5) * miss, z: s.z + (Math.random() - 0.5) * miss });
-        if (Math.random() < 0.6) b.controls.click(0);
+        busy.add(b);
+        const miss = 1.6 + (1 - mind.skill) * 2.4;
+        const off = () => ({ x: (Math.random() - 0.5) * miss, y: (Math.random() - 0.5) * miss, z: (Math.random() - 0.5) * miss });
+        let a = this.aimers.get(b);
+        if (!a || a.chopper !== fl.id) {
+          const notice = BOT_NOTICE[0] + (BOT_NOTICE[1] - BOT_NOTICE[0]) * mind.skill;
+          this.aimers.set(b, (a = { chopper: fl.id, next: now + notice, until: 0, err: off(), seen: now }));
+        }
+        a.seen = now;
+        if (now >= a.next) {
+          a.until = now + 0.5 + Math.random() * 0.5;
+          a.next = a.until + 0.6 + Math.random() * 0.6;
+          a.err = off();
+        }
+        b.controls.lookAt({ x: s.x + a.err.x, y: s.y + a.err.y, z: s.z + a.err.z });
+        if (now < a.until) b.controls.click(0);
       }
     }
+    // Out of sight (or busy) a while: they'll have to take it in again.
+    for (const [b, a] of [...this.aimers]) if (now - a.seen > AIM_MEMORY) this.aimers.delete(b);
   }
 
   // -----------------------------------------------------------------------------------------------

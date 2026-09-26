@@ -6,7 +6,7 @@ import type { WidgetDefinition } from '@platform';
  * and score (and the case, while they carry it); always their streak toward the UAV (three) and
  * the Adrenaline Shot (five), and how long those have left; in a free-for-all or Team Deathmatch
  * on toward the Hellstorm (seven) and the Attack Chopper (ten), and which of those is ready to
- * call in (4). The markup and styles are here;
+ * call in (5). The markup and styles are here;
  * `personalHud` fills it in every tick with `player.hud.widget('dossier', data)`, and only what
  * changed goes to their screen. It's inked on paper like the rest of the HUD, from the theme's
  * colours.
@@ -30,7 +30,7 @@ export const DOSSIER: WidgetDefinition = {
       <span class="pips {{pipsClass}}"><i data-each="pips" class="pip {{.}}"></i></span>
       <span class="value more" data-if="extra > 0">+{{extra}}</span>
     </div>
-    <div class="perk ready" data-if="ready"><span class="perk-key">4</span><span class="perk-name">{{ready}}</span><span class="perk-time">Ready</span></div>
+    <div class="perk ready" data-if="ready"><span class="perk-key">5</span><span class="perk-name">{{ready}}</span><span class="perk-time">Ready</span></div>
     <div class="perk uav" data-if="uav > 0" style="--left: {{uav}}; --of: {{uavFor}}">
       <span class="perk-name">UAV</span><span class="perk-bar"><span></span></span><span class="perk-time">{{uav}}s</span>
     </div>
@@ -385,5 +385,105 @@ export const MATCHBAR: WidgetDefinition = {
     }
     @keyframes card-in {
       from { transform: skewX(-10deg) scale(1.7); }
+    }`,
+};
+
+/**
+ * The vote to skip (skipvote.ts), up on everyone's screen while any votes are in: a panel at the
+ * left with the match on now, a card for each vote it takes (lit for those in) and the count.
+ * Everyone's copy says whether they've voted themselves (`voted`, a player's own field), and how
+ * to change that.
+ */
+export const SKIPVOTE: WidgetDefinition = {
+  at: 'left',
+  html: `
+    <div class="vote">
+      <div class="head"><span class="tag">Vote</span><span class="title">Skip it?</span></div>
+      <div class="what">{{what}}</div>
+      <div class="line">
+        <span class="pips"><i data-each="pips" class="pip {{.}}"></i></span>
+        <span class="count">{{votes}} / {{need}}</span>
+      </div>
+      <div class="hint" data-if="!voted">V to vote</div>
+      <div class="hint mine" data-if="voted">You voted · V takes it back</div>
+    </div>`,
+  css: `
+    .vote {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 170px;
+      padding: 7px 12px 8px;
+      background: var(--hud-paper, #fdf1d6);
+      color: var(--hud-fg, #111);
+      border: 3px solid var(--hud-ink, #111);
+      border-left: 12px solid var(--hud-accent, #ffcc00);
+      border-radius: 4px;
+      box-shadow: 6px 6px 0 var(--hud-ink, #111);
+      animation: vote-in 320ms cubic-bezier(0.3, 1.8, 0.5, 1);
+    }
+    .head {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+    }
+    .tag {
+      font: 700 10px var(--sans);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 1px 5px;
+      background: var(--hud-ink, #111);
+      color: var(--hud-accent, #ffcc00);
+      border-radius: 2px;
+    }
+    .title {
+      font: 700 22px var(--pixel);
+      letter-spacing: 0.04em;
+    }
+    .what {
+      font: 600 11px var(--sans);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.75;
+    }
+    .line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    /* A card for each vote it takes, like the streak's. */
+    .pips {
+      display: flex;
+      gap: 5px;
+    }
+    .pip {
+      width: 13px;
+      height: 16px;
+      border: 2px solid var(--hud-ink, #111);
+      transform: skewX(-10deg);
+      background: rgba(0, 0, 0, 0.08);
+    }
+    .pip.on {
+      background: var(--hud-accent, #ffcc00);
+      animation: pip-in 260ms cubic-bezier(0.3, 1.8, 0.5, 1);
+    }
+    .count {
+      font: 700 20px var(--pixel);
+      font-variant-numeric: tabular-nums;
+    }
+    .hint {
+      font: 600 10px var(--sans);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.7;
+    }
+    .hint.mine {
+      opacity: 1;
+    }
+    @keyframes vote-in {
+      from { transform: scale(1.35); opacity: 0; }
+    }
+    @keyframes pip-in {
+      from { transform: skewX(-10deg) scale(1.6); }
     }`,
 };

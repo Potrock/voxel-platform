@@ -1,7 +1,8 @@
 # Redesign, part 2: item kinds as kits
 
 Status: **in progress**. 4a (the mechanism and the host halves), 4b (the screen halves), 4c (open
-item types) and 4e (the litmus) are built; 4d (`runtime.ts` in parts) is next.
+item types), 4d (`runtime.ts` in parts: replays, other players' figures, rubble and the development
+tools) and 4e (the litmus) are built.
 Started 2026-09-26, following REDESIGN-CLIENT-SERVER.md's "Later": the user asked to continue the
 refactor for the edges and overfits raised after phases 1 to 3.
 
@@ -276,6 +277,28 @@ Building it settled a few things the design left open:
   whenever its kit says it's drawn.
 - **Left for later:** `HoldSpec.gun` (`GunHold`) and the gun sounds in `ItemSounds`. They're data
   the presentation kits read, not logic, but they're still gun vocabulary in the core types.
+
+## What 4d changed
+
+`runtime.ts` went from 2,215 lines to 1,786. Four parts left it for `src/platform/client/`,
+each a class told only what it needs of the runtime (a `…Parts` interface, as `ClientHost` is for
+the client API), with no change to what's drawn, played or sent, or in what order:
+- **`replays.ts`, `ReplayView`**: the replay playing on this screen: starting and ending one, the
+  live calls it hides, each frame's step and its events, its camera (the followed player's eyes, or
+  its own), `client.me` through those eyes, and the `client.replay` service.
+- **`avatars.ts`, `Avatars`**: other players as figures (their types, stable ids and hurt flashes)
+  and their name tags; and `standIn`, this client's player at the spawn before it joins.
+- **`debris.ts`, `Debris`**: rubble from damage and from blocks broken whole, the dust, the blasts
+  it's flung from, and blocks' average colours (`client.world.blockColor`).
+- **`devtools.ts`, `DevTools`**: the F3 overlay, `__game.debugInfo()` and `__game.dev`.
+
+`window.__game` is as it was: the `debug*` hooks, `dev`, `controller` and the fields tests read stay
+on the runtime (`__game.replay` is a getter now). The presentation check covers the first three.
+
+Input and the modes stayed: `onKey`, `onPadButton`, the picker and the pause read and set the
+runtime's mode and reach the command bar, the menus and the HUD's visibility, so a module of them
+would take most of the runtime as its interface. Pad aim is a few lines. The settings, the pause and
+the client wiring are glue.
 
 ## 4e: the litmus passed
 
