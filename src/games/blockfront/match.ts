@@ -2,6 +2,7 @@ import type { MenuHandle, Player } from '@platform';
 import type { ClassId } from './classes';
 import type { HeroId } from './heroes/defs';
 import { MAPS, type MapSpec, type PostSpec } from './map';
+import { MODES, type Mode } from './modes';
 import type { Team } from './teams';
 
 /**
@@ -19,6 +20,8 @@ export interface Fighter {
   hero: HeroId | null;
   /** The hero they've picked to spawn as next (paid for when they spawn). */
   wantHero: HeroId | null;
+  /** The hero they were last (Heroes vs Villains: they come back as them). */
+  lastHero: HeroId | null;
   /** The post they've picked to spawn at (null: wherever's best). */
   spawnAt: string | null;
   /** Battle points in hand: earned in the fight, spent on heroes. */
@@ -55,6 +58,7 @@ export interface Post {
 
 export const match = {
   fighters: new Map<string, Fighter>(),
+  mode: MODES.conquest as Mode,
   map: MAPS[0] as MapSpec,
   phase: 'playing' as 'playing' | 'over',
   /** Reinforcements each side has left. */

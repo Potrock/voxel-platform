@@ -1,13 +1,14 @@
-import { defineServer, type Bot, type GameContext, type IconRef, type MenuOptions, type Player, type Vec3 } from '@platform';
+import { defineServer, type Bot, type GameContext, type IconRef, type MenuHandle, type MenuOptions, type Player, type Vec3 } from '@platform';
 import { guns, melee, navGrid, throwables, type NavGrid } from '@platform/kits';
 import { makeBots, type Bots } from './bots';
 import { CLASSES, CLASS_IDS, type ClassId } from './classes';
-import { Conquest, TICKETS, type PostNews } from './conquest';
+import { Conquest, type PostNews } from './conquest';
 import { HEROES, HERO_IDS, saberOf, type HeroId } from './heroes/defs';
 import { setupHeroes, type Heroes } from './heroes/rules';
 import { CONQUEST, STATUS } from './hud';
 import { MAPS, mapById, type SpawnPoint } from './map';
 import { fighterOf, hostile, match, teamFighters, type Fighter, type Post } from './match';
+import { MODES, ROTATION, type MatchPlan, type ModeId } from './modes';
 import { COLORS, shared, trooperModel } from './shared';
 import { other, TEAMS, type Team } from './teams';
 import { BLASTERS, COOL_AFTER, COOL_FULL, defineWeapons, feedIcon, weaponFor, weaponName } from './weapons';
@@ -29,12 +30,10 @@ import { BLASTERS, COOL_AFTER, COOL_FULL, defineWeapons, feedIcon, weaponFor, we
  * heroes too once they've earned it.
  */
 
-/** Fighters a side, people included, unless a command says otherwise. */
-const SIDE = 10;
+/** Most fighters a side, people included (a mode says how many it fills to: `Mode.side`). */
 const MAX_SIDE = 16;
 const RESPAWN = 5;
 const INTERMISSION = 15;
-const TIME_LIMIT = 16 * 60;
 /** Heroes a side may have in play at once. */
 const HEROES_A_SIDE = 2;
 /** Battle points. */
@@ -56,7 +55,13 @@ let overAt = 0;
 let lastSecond = -1;
 let boardDirty = true;
 let boardAt = 0;
-let side = SIDE;
+/** Fighters a side a command asked for (null: the mode's). */
+let sideOverride: number | null = null;
+/** What the next match plays; where the public rotation has got to; the match menu in a room of one's own. */
+let plan: MatchPlan = ROTATION[0];
+let turn = 0;
+let settings: MenuHandle | null = null;
+let offered = false;
 let joining: Team | null = null;
 let conquest: Conquest;
 let heroes: Heroes;
@@ -70,6 +75,9 @@ const coolant = new Map<string, number>();
 /** What each post's marker shows now (only changes go out). */
 const markers = new Map<string, string>();
 
+const heroMode = () => match.mode.heroes;
+const sideSize = () => Math.min(MAX_SIDE, sideOverride ?? match.mode.side);
+const planName = (m: MatchPlan) => `${MODES[m.mode].name} on ${mapById(m.map)?.name ?? m.map}`;
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const teamColor = (t: Team | null) => (t === null ? '#e9edf2' : TEAMS[t].color);
 
@@ -85,6 +93,7 @@ function addFighter(game: GameContext, p: Player): Fighter {
     cls: p.bot ? botClass(game.rng.next()) : 'trooper',
     hero: null,
     wantHero: null,
+    lastHero: null,
     spawnAt: null,
     bp: 0,
     score: 0,
@@ -150,6 +159,8 @@ const heroesUp = (t: Team) => teamFighters(t).filter((f) => f.hero && f.player.a
 function heroRefusal(f: Fighter, id: HeroId): string | null {
   const h = HEROES[id];
   if (h.team !== f.team) return 'the other side';
+  // Heroes vs Villains: any of their side's, as many of each as like.
+  if (heroMode()) return null;
   if ([...fighters.values()].some((o) => o !== f && o.hero === id && o.player.alive)) return 'in play';
   if (f.hero !== id && heroesUp(f.team) >= HEROES_A_SIDE) return `${HEROES_A_SIDE} heroes out`;
   if (f.hero !== id && f.bp < h.cost) return `${h.cost} BP`;
@@ -196,7 +207,7 @@ function spawn(game: GameContext, f: Fighter) {
   const p = f.player;
   const post = spawnPost(f);
   const sp = spawnPoint(game, f, post);
-  const hero = f.wantHero && !heroRefusal(f, f.wantHero) ? f.wantHero : null;
+  const hero = heroMode() ? heroFor(f) : f.wantHero && !heroRefusal(f, f.wantHero) ? f.wantHero : null;
   if (f.wantHero && !hero && !p.bot) p.hud.toast(`${HEROES[f.wantHero].name} isn't free: back to ${CLASSES[f.cls].name}`);
   f.wantHero = null;
   p.freeze(false);
@@ -218,12 +229,22 @@ function spawn(game: GameContext, f: Fighter) {
   else p.audio.play('respawn');
 }
 
+/** Heroes vs Villains: the hero they come back as (their pick, the last they were, or one of their side's at random). */
+function heroFor(f: Fighter): HeroId {
+  const mine = HERO_IDS.filter((id) => HEROES[id].team === f.team);
+  const pick = [f.wantHero, f.lastHero].find((id) => id && mine.includes(id));
+  return pick ?? mine[Math.floor(Math.random() * mine.length)];
+}
+
 function becomeHero(game: GameContext, f: Fighter, id: HeroId) {
   const h = HEROES[id];
-  if (f.hero !== id) f.bp -= h.cost;
+  if (f.hero !== id && !heroMode()) f.bp -= h.cost;
   f.hero = id;
+  f.lastHero = id;
   heroes.become(f.player, id);
   boardDirty = true;
+  // (In Heroes vs Villains everyone's a hero all the time: no fanfare.)
+  if (heroMode()) return;
   game.hud.feed([{ text: f.player.name, color: TEAMS[f.team].color }, ` is ${h.name}`]);
   game.hud.banner(h.name.toUpperCase(), `${h.title} · for the ${TEAMS[f.team].name}`, { color: h.blade, duration: 2.2 });
   game.audio.play('hero_arrives');
@@ -237,10 +258,14 @@ function spawnMenu(game: GameContext, f: Fighter) {
   const refresh = () => f.menu?.update({ subtitle: subtitle(), sections: sections() });
   const subtitle = () => {
     const wait = Math.max(0, Math.ceil(RESPAWN - (game.clock.now - f.diedAt)));
-    const next = f.wantHero ? HEROES[f.wantHero].name : CLASSES[f.cls].name;
+    const next = heroMode() ? HEROES[f.wantHero ?? f.lastHero ?? heroFor(f)].name : f.wantHero ? HEROES[f.wantHero].name : CLASSES[f.cls].name;
     return p.alive ? `${f.bp} battle points · picks change what you carry for a few seconds after spawning, else next life` : `Deploying as ${next} in ${wait} · ${f.bp} battle points`;
   };
-  const sections = (): MenuOptions['sections'] => [
+  const sections = (): MenuOptions['sections'] => {
+    const all = allSections();
+    return heroMode() ? all.filter((s) => s.title === 'Heroes') : all;
+  };
+  const allSections = (): MenuOptions['sections'] => [
     {
       title: 'Class',
       entries: CLASS_IDS.map((id) => ({
@@ -268,7 +293,7 @@ function spawnMenu(game: GameContext, f: Fighter) {
           icon: { item: saberOf(id), view: 'side' } as IconRef,
           label: HEROES[id].name,
           note: `${HEROES[id].title} · ${HEROES[id].powers.map((w) => w.name).join(' · ')}`,
-          detail: why ?? `${HEROES[id].cost} BP`,
+          detail: why ?? (heroMode() ? '' : `${HEROES[id].cost} BP`),
           disabled: why !== null,
           active: f.wantHero === id || f.hero === id,
           onSelect: () => {
@@ -321,7 +346,7 @@ function balanceBots(game: GameContext) {
     const mine = teamFighters(t);
     const people = mine.filter((f) => !f.player.bot).length;
     const theirs = mine.filter((f) => f.player.bot).map((f) => f.player);
-    const want = Math.max(0, Math.min(side, MAX_SIDE) - people);
+    const want = Math.max(0, sideSize() - people);
     if (theirs.length < want)
       for (let i = theirs.length; i < want; i++) {
         const name = BOT_NAMES[t].find((n) => !used.has(n)) ?? `${t ? 'TK' : 'Pvt.'} ${game.players.length + 100}`;
@@ -359,7 +384,7 @@ function onDeath(game: GameContext, victim: Player, source: unknown, weapon: str
   if (wasHero) {
     heroes.end(victim);
     v.hero = null;
-    game.hud.feed([{ text: `${HEROES[wasHero].name} has fallen`, color: HEROES[wasHero].blade }]);
+    if (!heroMode()) game.hud.feed([{ text: `${HEROES[wasHero].name} has fallen`, color: HEROES[wasHero].blade }]);
   }
   boardDirty = true;
   const killer = typeof source === 'object' && source !== null && (source as Player).kind === 'player' ? (source as Player) : null;
@@ -430,6 +455,8 @@ function endMatch(game: GameContext, winner: Team) {
     game.store.set(key, s);
     p.hud.toast(`All time: ${s.wins} wins in ${s.games} · ${s.kills} kills`);
   }
+  // What's next: the rotation's next match in a public room; the same again in one's own.
+  if (game.room === 'public') plan = ROTATION[++turn % ROTATION.length];
   scoreboard(game, true);
 }
 
@@ -465,7 +492,7 @@ function cool(game: GameContext, dt: number) {
 // -------------------------------------------------------------------------------------------------
 
 function scoreboard(game: GameContext, show = false) {
-  const left = Math.max(0, TIME_LIMIT - (game.clock.now - startedAt));
+  const left = Math.max(0, match.mode.time - (game.clock.now - startedAt));
   const rows = [...fighters.values()]
     .sort((a, b) => a.team - b.team || b.score - a.score)
     .map((f) => ({
@@ -476,21 +503,21 @@ function scoreboard(game: GameContext, show = false) {
     }));
   const sides = `${TEAMS[0].short} ${match.tickets[0]} · ${TEAMS[1].short} ${match.tickets[1]}`;
   game.hud.scoreboard({
-    title: `${match.map.name.toUpperCase()} · CONQUEST`,
+    title: `${match.map.name.toUpperCase()} · ${match.mode.name.toUpperCase()}`,
     columns: ['Score', 'Kills', 'Deaths', 'Posts'],
     rows,
-    footer: match.phase === 'over' ? `${sides} · next match in ${Math.max(0, Math.ceil(INTERMISSION - (game.clock.now - overAt)))}` : `${sides} · ${fmt(left)} left`,
+    footer: match.phase === 'over' ? `${sides} · next: ${planName(plan)} in ${Math.max(0, Math.ceil(INTERMISSION - (game.clock.now - overAt)))}` : `${sides} · ${fmt(left)} left`,
     show,
   });
 }
 
 function conquestBar(game: GameContext) {
-  const left = Math.max(0, TIME_LIMIT - (game.clock.now - startedAt));
-  const sideOf = (t: Team) => ({ short: TEAMS[t].short, color: TEAMS[t].color, tickets: match.tickets[t], pct: Math.round((match.tickets[t] / TICKETS) * 100) / 100 });
+  const left = Math.max(0, match.mode.time - (game.clock.now - startedAt));
+  const sideOf = (t: Team) => ({ short: TEAMS[t].short, color: TEAMS[t].color, tickets: match.tickets[t], pct: Math.round((match.tickets[t] / match.mode.tickets) * 100) / 100 });
   game.hud.widget('conquest', {
     a: sideOf(0),
     b: sideOf(1),
-    posts: match.posts.map((p) => ({
+    posts: (match.mode.posts ? match.posts : []).map((p) => ({
       id: p.spec.id,
       own: p.owner === null ? 'none' : TEAMS[p.owner].id,
       state: p.contested ? 'contested' : p.moving !== null ? 'moving' : '',
@@ -500,7 +527,7 @@ function conquestBar(game: GameContext) {
     clock: fmt(left),
   });
   // The posts' markers in the world, in their holder's colour.
-  for (const p of match.posts) {
+  for (const p of match.mode.posts ? match.posts : []) {
     const key = `${p.owner}|${p.contested}|${p.moving}`;
     if (markers.get(p.spec.id) === key) continue;
     markers.set(p.spec.id, key);
@@ -522,7 +549,7 @@ function personalHud(game: GameContext, f: Fighter) {
     heroCost: cheapest,
   });
   // Taking a post: how far it's come (0 the other side's, a half nobody's, 1 ours).
-  const post = p.alive ? conquest.postOf(p) : null;
+  const post = p.alive && match.mode.posts ? conquest.postOf(p) : null;
   if (post && !post.spec.locked && (post.moving !== null || post.contested || post.owner !== f.team)) {
     const mine = f.team === 0 ? post.control : -post.control;
     p.hud.progress(Math.round(((mine + 1) / 2) * 50) / 50, { color: post.contested ? '#ffffff' : TEAMS[f.team].color });
@@ -544,6 +571,52 @@ function personalHud(game: GameContext, f: Fighter) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Choosing the match: a public room goes round the rotation; a room of one's own picks (M)
+// -------------------------------------------------------------------------------------------------
+
+const MODE_ICONS: Record<ModeId, IconRef> = { conquest: { item: 'imp_rifle', view: 'side' }, hvv: { item: 'saber_vader', view: 'side' } };
+
+function matchMenu(game: GameContext, p: Player) {
+  if (game.room === 'public') {
+    p.hud.toast(`Public games go round the modes · next: ${planName(plan)}`);
+    return;
+  }
+  if (settings?.open) return;
+  const pick: MatchPlan = { mode: match.mode.id, map: match.map.id };
+  const sections = (): MenuOptions['sections'] => [
+    { title: 'Mode', entries: Object.values(MODES).map((m) => ({ icon: MODE_ICONS[m.id], label: m.name, note: m.goal, active: pick.mode === m.id, onSelect: () => ((pick.mode = m.id), settings?.update({ sections: sections() })) })) },
+    { title: 'Map', entries: MAPS.map((m) => ({ icon: { block: 'sandstone' }, label: m.name, note: m.blurb, active: pick.map === m.id, onSelect: () => ((pick.map = m.id), settings?.update({ sections: sections() })) })) },
+    {
+      title: 'Go',
+      entries: [
+        {
+          icon: { block: 'glowstone' },
+          label: 'Start the match',
+          note: planName(pick),
+          onSelect: () => {
+            plan = { ...pick };
+            settings?.close();
+            game.hud.feed([{ text: p.name, color: COLORS.yellow }, ` started ${planName(plan)}`]);
+            game.restart();
+          },
+        },
+      ],
+    },
+  ];
+  offered = true;
+  settings = p.hud.menu({
+    title: 'Your game',
+    subtitle: 'Pick the mode and the map, then start: the match begins again with them. M brings this back.',
+    sections: sections(),
+    onClose: () => {
+      settings = null;
+      const f = fighters.get(p.id);
+      if (f && running && match.phase === 'playing') spawnMenu(game, f);
+    },
+  });
+}
+
+// -------------------------------------------------------------------------------------------------
 // The game
 // -------------------------------------------------------------------------------------------------
 
@@ -555,7 +628,11 @@ export default defineServer(shared, {
     match.phase = 'playing';
     match.map = MAPS[0];
     running = false;
-    side = SIDE;
+    sideOverride = null;
+    plan = ROTATION[0];
+    turn = 0;
+    settings = null;
+    offered = false;
     lastShot.clear();
     coolant.clear();
     markers.clear();
@@ -579,7 +656,9 @@ export default defineServer(shared, {
     });
     game.events.on('playerReady', ({ player }) => {
       const f = fighters.get(player.id);
-      if (f && running) spawnMenu(game, f);
+      // A room of one's own: the first one in picks what to play; anyone else, what they fight as.
+      if (game.room !== 'public' && !offered) matchMenu(game, player);
+      else if (f && running) spawnMenu(game, f);
     });
     game.events.on('playerLeave', ({ player }) => {
       const f = fighters.get(player.id);
@@ -610,9 +689,9 @@ export default defineServer(shared, {
       help: 'Fill each side up to n fighters',
       cheat: true,
       run: ([n], g) => {
-        side = Math.max(0, Math.min(MAX_SIDE, Number(n) || 0));
+        sideOverride = Math.max(0, Math.min(MAX_SIDE, Number(n) || 0));
         balanceBots(g);
-        return `${side} a side`;
+        return `${sideSize()} a side`;
       },
     });
     game.commands.register('bp', {
@@ -661,16 +740,32 @@ export default defineServer(shared, {
         return match.tickets.join(' · ');
       },
     });
+    game.commands.register('mode', {
+      usage: `<${Object.keys(MODES).join('|')}> [map]`,
+      help: 'Start a match of this mode (on this map)',
+      cheat: true,
+      complete: () => Object.keys(MODES),
+      run: ([m, where], g) => {
+        if (!m || !(m in MODES)) return `modes: ${Object.keys(MODES).join(', ')}`;
+        if (where && !mapById(where)) return `maps: ${MAPS.map((x) => x.id).join(', ')}`;
+        plan = { mode: m as ModeId, map: where ?? match.map.id };
+        g.restart();
+        return planName(plan);
+      },
+    });
     game.commands.register('win', { help: 'End the match now', cheat: true, run: (_a, g, p) => endMatch(g, fighterOf(p)?.team ?? 0) });
   },
 
   start(game) {
     running = true;
     match.phase = 'playing';
-    match.map = mapById(match.map.id) ?? MAPS[0];
+    match.mode = MODES[plan.mode];
+    match.map = mapById(plan.map) ?? MAPS[0];
     hotspots.splice(0, hotspots.length, ...match.map.hotspots);
     game.world.spawn = match.map.home;
-    conquest.begin(match.map.posts);
+    conquest.begin(match.map.posts, match.mode.tickets);
+    // Without posts to fight over, their markers go.
+    for (const p of match.map.posts) game.hud.marker(`post_${p.id}`, null);
     startedAt = game.clock.now;
     lastSecond = -1;
     boardDirty = true;
@@ -679,13 +774,13 @@ export default defineServer(shared, {
     coolant.clear();
     for (const f of fighters.values()) {
       if (f.hero) heroes.end(f.player);
-      Object.assign(f, { hero: null, wantHero: null, spawnAt: null, bp: 0, score: 0, kills: 0, deaths: 0, captures: 0, diedAt: -1, firedAt: -99, radar: '' });
+      Object.assign(f, { hero: null, wantHero: null, lastHero: null, spawnAt: null, bp: 0, score: 0, kills: 0, deaths: 0, captures: 0, diedAt: -1, firedAt: -99, radar: '' });
     }
     for (const p of game.players) if (!fighters.has(p.id)) addFighter(game, p);
     balanceBots(game);
     for (const f of fighters.values()) spawn(game, f);
     conquestBar(game);
-    game.hud.banner(match.map.name.toUpperCase(), `Conquest · ${match.map.blurb}`, { color: COLORS.yellow, duration: 3.5 });
+    game.hud.banner(match.map.name.toUpperCase(), `${match.mode.name} · ${match.mode.posts ? match.map.blurb : match.mode.goal}`, { color: COLORS.yellow, duration: 3.5 });
     game.audio.play('match_start');
   },
 
@@ -707,6 +802,7 @@ export default defineServer(shared, {
       const p = f.player;
       if (!p.bot) {
         if (p.input.pressed('KeyH')) spawnMenu(game, f);
+        if (p.input.pressed('KeyM')) matchMenu(game, p);
         if (p.input.pressed('KeyV')) {
           f.thirdPerson = !f.thirdPerson;
           camera(f);
@@ -733,7 +829,7 @@ export default defineServer(shared, {
       endMatch(game, other(loser));
       return;
     }
-    const left = TIME_LIMIT - (now - startedAt);
+    const left = match.mode.time - (now - startedAt);
     if (left <= 0) {
       endMatch(game, match.tickets[0] >= match.tickets[1] ? 0 : 1);
       return;
