@@ -4,7 +4,7 @@ import { makeBots, type Bots } from './bots';
 import { CLASSES, CLASS_IDS, type ClassId } from './classes';
 import { Conquest, type PostNews } from './conquest';
 import { HEROES, HERO_IDS, saberOf, type HeroId } from './heroes/defs';
-import { setupHeroes, type Heroes } from './heroes/rules';
+import { heroItems, setupHeroes, type Heroes } from './heroes/rules';
 import { BOARD_COLUMNS, CONQUEST, STATUS } from './hud';
 import { MAPS, mapById, type SpawnPoint } from './map';
 import { fighterOf, hostile, match, teamFighters, type Fighter, type Post } from './match';
@@ -642,8 +642,9 @@ function matchMenu(game: GameContext, p: Player) {
 // -------------------------------------------------------------------------------------------------
 
 export default defineServer(shared, {
-  // Its kinds of item: thermal detonators (first: one being cooked takes the fire button), blasters, sabers.
-  items: [throwables(), guns({ fireStopsSprint: true }), melee({ fist: false })],
+  // Its kinds of item: thermal detonators (first: one being cooked takes the fire button), blasters, sabers
+  // (the heroes', `heroes/saber.ts`).
+  items: [throwables(), guns({ fireStopsSprint: true }), melee({ fist: false }), ...heroItems()],
   setup(game) {
     match.fighters = fighters = new Map();
     match.phase = 'playing';
