@@ -12,7 +12,7 @@ import { STREAK_IDS, STREAKS, type StreakId } from './kinds';
 
 /**
  * The killstreaks you steer, on the server: seven in a row earns a Hellstorm, ten an Attack Chopper
- * (free-for-all and Team Deathmatch). Earned ones wait until called in with 4 (a controller's
+ * (free-for-all and Team Deathmatch). Earned ones wait until called in with 5 (a controller's
  * D-pad left), the latest first, and last until the match is over.
  *
  * Calling one in puts the fighter's controls and camera in it (`drive(..., { remote: true })`:
@@ -139,7 +139,7 @@ export class Streaks {
       if (!this.botAt.has(p)) this.botAt.set(p, this.game.clock.now + 1.5 + Math.random() * 3);
       return;
     }
-    p.hud.banner(`${STREAKS[id].name.toUpperCase()} READY`, 'Press 4 to call it in', { color: COLORS.gold, duration: 2.6 });
+    p.hud.banner(`${STREAKS[id].name.toUpperCase()} READY`, 'Press 5 to call it in', { color: COLORS.gold, duration: 2.6 });
     p.audio.play('streak_ready');
   }
 
@@ -171,9 +171,9 @@ export class Streaks {
     for (const f of match.fighters.values()) {
       const p = f.player;
       if (!p.bot) {
-        if (!this.on || !p.input.pressed('Digit4')) continue;
-        // (4 isn't the lethal's slot while there are streaks to call in.)
-        p.input.consume('Digit4');
+        if (!this.on || !p.input.pressed('Digit5')) continue;
+        // (5 isn't the empty fifth slot while there are streaks to call in: the hand keeps what it holds.)
+        p.input.consume('Digit5');
         if (!p.alive || this.flying(p)) continue;
         if (f.streaks.length) this.callIn(f, f.streaks.pop()!);
         else p.hud.toast(`${STREAKS.hellstorm.name} at ${STREAKS.hellstorm.kills} kills in a row, ${STREAKS.chopper.name} at ${STREAKS.chopper.kills}`);

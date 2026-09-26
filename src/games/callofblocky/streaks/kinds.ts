@@ -1,6 +1,6 @@
 /**
  * The killstreaks you call in (free-for-all and Team Deathmatch): what each is called and how many
- * kills in a row earn it. Earned ones wait until called in (4), latest first, and last until the
+ * kills in a row earn it. Earned ones wait until called in (5), latest first, and last until the
  * match ends. (The UAV at three and the Adrenaline Shot at five come at once: `server.ts`.)
  */
 export type StreakId = 'hellstorm' | 'chopper';

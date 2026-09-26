@@ -38,7 +38,7 @@ import { STREAK_IDS, STREAKS } from './streaks/kinds';
  * up your spare rounds (ammo.ts). Three kills in a row light up the radar for you (UAV); five get
  * an Adrenaline Shot: faster, and patched up. In a free-for-all or Team Deathmatch, seven earn a
  * Hellstorm missile to steer down onto them, and ten an Attack Chopper to fly and shoot from, each
- * called in with 4 when you like (`streaks/`).
+ * called in with 5 when you like (`streaks/`).
  */
 
 const TIME_LIMIT: Record<ModeId, number> = { ffa: 8 * 60, tdm: 10 * 60, case: Infinity };
@@ -945,14 +945,14 @@ export default defineServer(shared, {
     });
     game.commands.register('streak', {
       usage: '<hellstorm|chopper>',
-      help: 'Earn a killstreak now (call it in with 4)',
+      help: 'Earn a killstreak now (call it in with 5)',
       cheat: true,
       run: ([id], _g, p) => {
         const f = fighterOf(p);
         if (!f || !id || !(STREAK_IDS as string[]).includes(id)) return `streaks: ${STREAK_IDS.join(', ')}`;
         if (!streaks.on) return 'streaks are for the free-for-all and Team Deathmatch';
         streaks.earn(f, id as (typeof STREAK_IDS)[number]);
-        return `${STREAKS[id as (typeof STREAK_IDS)[number]].name} ready: press 4`;
+        return `${STREAKS[id as (typeof STREAK_IDS)[number]].name} ready: press 5`;
       },
       complete: () => [...STREAK_IDS],
     });
@@ -1059,7 +1059,7 @@ export default defineServer(shared, {
     const between = isCase() && (rounds.phase === 'prep' || rounds.phase === 'post');
     bots.update(dt, match.phase !== 'playing' || between);
     if (isCase() && match.phase === 'playing') rounds.driveBots(bots);
-    // Killstreaks: calling them in (4), flying them, bots firing up at choppers.
+    // Killstreaks: calling them in (5), flying them, bots firing up at choppers.
     streaks.update(dt);
     // The vote to skip (V), people's only: a vote that carries it ends the match here.
     for (const p of game.players) {

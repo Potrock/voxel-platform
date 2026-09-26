@@ -6,7 +6,7 @@ import type { WidgetDefinition } from '@platform';
  * and score (and the case, while they carry it); always their streak toward the UAV (three) and
  * the Adrenaline Shot (five), and how long those have left; in a free-for-all or Team Deathmatch
  * on toward the Hellstorm (seven) and the Attack Chopper (ten), and which of those is ready to
- * call in (4). The markup and styles are here;
+ * call in (5). The markup and styles are here;
  * `personalHud` fills it in every tick with `player.hud.widget('dossier', data)`, and only what
  * changed goes to their screen. It's inked on paper like the rest of the HUD, from the theme's
  * colours.
@@ -30,7 +30,7 @@ export const DOSSIER: WidgetDefinition = {
       <span class="pips {{pipsClass}}"><i data-each="pips" class="pip {{.}}"></i></span>
       <span class="value more" data-if="extra > 0">+{{extra}}</span>
     </div>
-    <div class="perk ready" data-if="ready"><span class="perk-key">4</span><span class="perk-name">{{ready}}</span><span class="perk-time">Ready</span></div>
+    <div class="perk ready" data-if="ready"><span class="perk-key">5</span><span class="perk-name">{{ready}}</span><span class="perk-time">Ready</span></div>
     <div class="perk uav" data-if="uav > 0" style="--left: {{uav}}; --of: {{uavFor}}">
       <span class="perk-name">UAV</span><span class="perk-bar"><span></span></span><span class="perk-time">{{uav}}s</span>
     </div>
