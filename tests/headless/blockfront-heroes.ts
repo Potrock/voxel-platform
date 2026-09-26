@@ -117,20 +117,28 @@ export default function blockfrontHeroes() {
   bolt(shooter);
   idle(0.1, { buttons: 4 });
   const sideLoss = before - me.health;
-  check(sideLoss > 20, `a bolt from the side should get through the guard (lost ${sideLoss})`);
+  // (A hero shrugs off some of a bolt: TOUGH.blaster.)
+  check(sideLoss > 10, `a bolt from the side should get through the guard (lost ${sideLoss})`);
   place(shooter, 0, 10);
   idle(0.1, { buttons: 4 });
   before = me.health;
   bolt(shooter);
   idle(0.1);
-  check(before - me.health > 20, 'a bolt from behind should get through');
+  check(before - me.health > 10, 'a bolt from behind should get through');
+  // A detonator's blast from the front gets through the guard whole.
+  place(shooter, 0, -10);
+  idle(0.1, { buttons: 4 });
+  before = me.health;
+  me.damage(90, { source: shooter, cause: 'explosion', weapon: 'detonator' });
+  idle(0.1, { buttons: 4 });
+  check(before - me.health >= 89, `a detonator should hurt through the guard (lost ${(before - me.health).toFixed(0)})`);
   // Without the guard up, from the front: it hurts.
   place(shooter, 0, -10);
   idle(0.2);
   before = me.health;
   bolt(shooter);
   idle(0.1);
-  check(before - me.health > 20, 'with the guard down, a bolt should hurt');
+  check(before - me.health > 10, 'with the guard down, a bolt should hurt');
   // A live trooper firing at the guard: most bolts turned.
   me.health = me.maxHealth;
   shooter.freeze(false);
@@ -151,7 +159,7 @@ export default function blockfrontHeroes() {
   off2();
   if (through.length) console.log(`  (through the guard: from ${through.join(', ')} off where he looked)`);
   const liveDeflects = messages('bfh.deflect') - deflected0;
-  console.log(`  guard: 6 frontal bolts all turned (${frontDeflects} shown), a flanking one took ${sideLoss}; a live trooper fired ${shots}, ${liveDeflects} steps of deflections, ${(before - me.health).toFixed(0)} got through`);
+  console.log(`  guard: 6 frontal bolts all turned (${frontDeflects} shown), a flanking one took ${sideLoss.toFixed(0)}; a live trooper fired ${shots}, ${liveDeflects} steps of deflections, ${(before - me.health).toFixed(0)} got through`);
   check(shots > 5, `the trooper should have fired at the hero (${shots})`);
   check(liveDeflects > 0, 'a live trooper\'s bolts should be deflected');
   shooter.freeze(true, { weapons: true });
