@@ -1,5 +1,7 @@
 import { defineClient } from '@platform/client';
 import { effects, figures, firstPerson, hud, sounds } from '@platform/client/kits';
+import { blasterHud } from './client/blaster-hud';
+import { bolts } from './client/bolts';
 import { defineLooks } from './client/looks';
 import { defineSounds } from './client/sounds';
 import { shared } from './shared';
@@ -11,7 +13,7 @@ import { shared } from './shared';
  * and bolt (`client/looks.ts`), and its voices (`client/sounds.ts`).
  */
 export default defineClient(shared, {
-  kits: [...sounds.standard(), ...firstPerson.standard(), figures.humanoid(), hud.gunner(), hud.throwables(), effects.gunfire(), effects.throwables()],
+  kits: [...sounds.standard(), ...firstPerson.standard(), figures.humanoid(), blasterHud(), hud.throwables(), bolts(), effects.throwables()],
   setup(client) {
     defineLooks(client);
     defineSounds(client);
