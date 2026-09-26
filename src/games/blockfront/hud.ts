@@ -108,7 +108,7 @@ export const STATUS: WidgetDefinition = {
       </div>
     </div>`,
   css: `
-    :scope { margin: 0; align-self: flex-end; width: 236px; }
+    :scope { margin: 0; align-self: flex-end; min-width: 236px; width: max-content; max-width: 340px; }
     .card {
       position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 8px 14px 10px 18px; color: #e9edf2;
       background: linear-gradient(270deg, rgba(6, 9, 13, 0.8), rgba(6, 9, 13, 0.55));
@@ -119,7 +119,7 @@ export const STATUS: WidgetDefinition = {
     .who { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
     .mark { width: 8px; height: 8px; background: var(--c); transform: rotate(45deg); box-shadow: 0 0 6px var(--c); }
     .side { font: 700 10px var(--pixel); letter-spacing: 0.22em; color: var(--c); }
-    .role { font: 700 14px var(--pixel); letter-spacing: 0.08em; color: #fff; text-transform: uppercase; }
+    .role { font: 700 14px var(--pixel); letter-spacing: 0.08em; color: #fff; text-transform: uppercase; white-space: nowrap; }
     .bp { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 5px; }
     .label { font: 700 9px var(--pixel); letter-spacing: 0.2em; color: rgba(233, 237, 242, 0.55); }
     .value { font: 700 19px/1 var(--pixel); color: var(--hud-accent, #ffe81f); font-variant-numeric: tabular-nums; text-shadow: 0 0 10px rgba(255, 232, 31, 0.3); }

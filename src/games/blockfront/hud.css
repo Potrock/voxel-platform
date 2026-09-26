@@ -375,7 +375,7 @@
   color: rgba(233, 237, 242, 0.7);
 }
 
-/* ---------- The deploy screen (hud.menu): class, hero, where ---------- */
+/* ---------- The deploy screen (hud.menu): class, hero, where (and the match menu, M: mode, map, go) ---------- */
 .menu-screen {
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px),
@@ -399,7 +399,7 @@
   border-bottom: 1px solid rgba(255, 232, 31, 0.3);
 }
 .menu-head > div::before {
-  content: 'DEPLOYMENT';
+  content: 'FIELD COMMAND';
   display: block;
   margin-bottom: 4px;
   font: 700 10px var(--pixel);
