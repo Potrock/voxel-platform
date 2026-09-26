@@ -1,16 +1,15 @@
 import type { ClientKit } from '@platform/client';
 
 /**
- * The spaceport's air on each screen, while a match is on: desert wind in gusts, a firefight
- * somewhere off across the flats (muffled bolts, now and then a blast), and every so often a
- * fighter screaming over. The voices are `client/sounds.ts`'s (`amb_*`); each plays at a point
- * round the player, so it comes from somewhere.
+ * The spaceport's air on each screen, while a match is on: desert wind in gusts, and a firefight
+ * somewhere off across the flats (muffled bolts, now and then a blast). The voices are
+ * `client/sounds.ts`'s (`amb_*`); each plays at a point round the player, so it comes from
+ * somewhere. (The starfighters overhead are the server's: `skies.ts`.)
  */
 export function ambience(): ClientKit {
   let wind = 0;
   let fight = 4;
   let boom = 14;
-  let flyby = 25;
   const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
   return {
@@ -35,10 +34,6 @@ export function ambience(): ClientKit {
       if (t >= boom) {
         boom = t + rand(12, 30);
         client.audio.play('amb_boom', { at: around(rand(70, 110), 0), volume: 3.5, pitch: rand(0.8, 1.1) });
-      }
-      if (t >= flyby) {
-        flyby = t + rand(35, 80);
-        client.audio.play('amb_flyby', { at: around(rand(25, 45), 30), volume: 3, pitch: rand(0.9, 1.1) });
       }
     },
   };
