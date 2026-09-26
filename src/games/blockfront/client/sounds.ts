@@ -52,6 +52,9 @@ export function defineSounds(client: Client) {
     s.tone({ wave: 'triangle', from: 660, to: 660, duration: 0.12, volume: 0.2 });
     s.tone({ wave: 'triangle', from: 990, to: 990, duration: 0.2, delay: 0.12, volume: 0.2 });
   });
+  a.define('low_tickets', (s) => {
+    for (let i = 0; i < 3; i++) s.tone({ wave: 'square', from: 440, to: 430, duration: 0.18, delay: i * 0.3, volume: 0.12, lowpass: 1600 });
+  });
   a.define('post_lost', (s) => {
     s.tone({ wave: 'triangle', from: 660, to: 660, duration: 0.12, volume: 0.2 });
     s.tone({ wave: 'triangle', from: 440, to: 430, duration: 0.25, delay: 0.12, volume: 0.2 });

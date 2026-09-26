@@ -74,6 +74,9 @@ const lastShot = new Map<string, number>();
 const coolant = new Map<string, number>();
 /** What each post's marker shows now (only changes go out). */
 const markers = new Map<string, string>();
+/** Each side's been warned its reinforcements are low. */
+const warned: [boolean, boolean] = [false, false];
+const LOW_TICKETS = 0.2;
 
 const heroMode = () => match.mode.heroes;
 const sideSize = () => Math.min(MAX_SIDE, sideOverride ?? match.mode.side);
@@ -401,6 +404,8 @@ function onDeath(game: GameContext, victim: Player, source: unknown, weapon: str
       { text: victim.name, color: TEAMS[v.team].color },
     ]);
     victim.hud.banner('KILLED BY', `${killer.name}${weapon ? ` · ${k.hero && weapon.startsWith('saber_') ? 'a saber' : weaponName(weapon)}` : ''}`, { color: COLORS.red, duration: RESPAWN - 0.5 });
+    // The death cam: a moment on the ground, then round whoever did it until they deploy again.
+    if (!victim.bot) game.clock.after(0.9, () => !victim.alive && killer.alive && victim.camera.orbit(killer, { distance: 6, min: 6, max: 6, wheel: false }));
   } else {
     game.hud.feed([{ text: victim.name, color: TEAMS[v.team].color }, weapon === 'detonator' ? ' held the detonator too long' : ' fell']);
   }
@@ -772,6 +777,7 @@ export default defineServer(shared, {
     markers.clear();
     lastShot.clear();
     coolant.clear();
+    warned[0] = warned[1] = false;
     for (const f of fighters.values()) {
       if (f.hero) heroes.end(f.player);
       Object.assign(f, { hero: null, wantHero: null, lastHero: null, spawnAt: null, bp: 0, score: 0, kills: 0, deaths: 0, captures: 0, diedAt: -1, firedAt: -99, radar: '' });
@@ -823,6 +829,16 @@ export default defineServer(shared, {
       }
       if (p.position.y < match.map.bounds.min.y - 6) p.damage(1000, { source: 'world', knockback: 0 });
       if (!p.bot) personalHud(game, f);
+    }
+    for (const t of [0, 1] as Team[]) {
+      if (warned[t] || match.tickets[t] > match.mode.tickets * LOW_TICKETS) continue;
+      warned[t] = true;
+      for (const f of teamFighters(t))
+        if (!f.player.bot) {
+          f.player.hud.banner('REINFORCEMENTS LOW', `${match.tickets[t]} left`, { color: COLORS.red, duration: 2.5 });
+          f.player.audio.play('low_tickets');
+        }
+      for (const f of teamFighters(other(t))) if (!f.player.bot) f.player.hud.feed([{ text: TEAMS[t].short, color: TEAMS[t].color }, ' are running out of reinforcements']);
     }
     const loser = conquest.loser();
     if (loser !== null) {
