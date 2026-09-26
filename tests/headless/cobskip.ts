@@ -180,7 +180,7 @@ export default function cobskip() {
   // Cat votes and leaves: her vote goes with her.
   opened();
   press(cat);
-  check(lastVote(ann) === 'Cat voted to skip The Briefcase on Jackrabbit Lane (1/2)', `Cat's vote: ${lastVote(ann)}`);
+  check(lastVote(ann) === 'Cat voted to skip The Briefcase on Hijacked (1/2)', `Cat's vote: ${lastVote(ann)}`);
   leave(cat);
   a = card(ann);
   check(a === null && now() === planned(2) && phase() === 'playing', `Cat left, her vote with her: ${JSON.stringify(a)}`);
@@ -189,9 +189,9 @@ export default function cobskip() {
   // one watching doesn't count, or it would take two).
   press(ann);
   a = card(ann);
-  check(lastVote(ann) === 'Ann voted to skip The Briefcase on Jackrabbit Lane (1/2)' && a?.votes === 1 && a.need === 2 && phase() === 'playing', `Ann's vote, two people: ${lastVote(ann)} ${JSON.stringify(a)}`);
+  check(lastVote(ann) === 'Ann voted to skip The Briefcase on Hijacked (1/2)' && a?.votes === 1 && a.need === 2 && phase() === 'playing', `Ann's vote, two people: ${lastVote(ann)} ${JSON.stringify(a)}`);
   leave(bob);
-  check(lastVote(ann) === 'The vote passed: The Briefcase on Jackrabbit Lane skipped' && phase() === 'over', `counted again when Bob left, Ann's vote carries: ${votes(ann).slice(-2).join(' | ')} (${phase()})`);
+  check(lastVote(ann) === 'The vote passed: The Briefcase on Hijacked skipped' && phase() === 'over', `counted again when Bob left, Ann's vote carries: ${votes(ann).slice(-2).join(' | ')} (${phase()})`);
   check(votes(watcher.id).at(-1) === lastVote(ann), 'the one watching sees the vote go by too');
   stepUntil(() => phase() === 'playing', 8);
   check(now() === planned(3), `and the next is on (${now()})`);
